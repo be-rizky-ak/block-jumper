@@ -1,0 +1,59 @@
+#pragma once
+
+#include <vector>
+#include "Aion/Math/Vector3.h"
+#include "Aion/Scene/Component.h"
+#include "game/GameConfig.h"
+#include "player/PlayerCollider.h"
+
+namespace BlockJumper
+{
+    class PlayerController : public Aion::Component
+    {
+    public:
+        PlayerController();
+        PlayerController(
+            const PlayerConfig& config,
+            const std::vector<PlatformBox>& platforms,
+            float cameraYawDegrees = 45.0f);
+
+        void OnUpdate(float deltaTime) override;
+
+        // Kinematics and state queries
+        const Aion::Vector3& GetHorizontalVelocity() const { return m_horizontalVelocity; }
+        float GetSpeed() const;
+        float GetVerticalVelocity() const { return m_verticalVelocity; }
+        bool IsGrounded() const { return m_isGrounded; }
+
+        const PlayerConfig& GetConfig() const { return m_config; }
+        void SetConfig(const PlayerConfig& config) { m_config = config; }
+
+        const std::vector<PlatformBox>& GetPlatforms() const { return m_platforms; }
+        void SetPlatforms(const std::vector<PlatformBox>& platforms) { m_platforms = platforms; }
+
+        float GetCameraYaw() const { return m_cameraYawDegrees; }
+        void SetCameraYaw(float yawDegrees) { m_cameraYawDegrees = yawDegrees; }
+
+        const PlayerCollider& GetCollider() const { return m_collider; }
+
+        // Simulation override for automated verification/testing
+        // forwardAxis: +1 (W / forward relative to camera), -1 (S / backward)
+        // rightAxis:   +1 (D / right relative to camera),   -1 (A / left)
+        void SetSimulatedInput(bool overrideInput, float forwardAxis, float rightAxis, bool jumpPressed);
+
+    private:
+        PlayerConfig m_config;
+        std::vector<PlatformBox> m_platforms;
+        PlayerCollider m_collider;
+        float m_cameraYawDegrees = 45.0f;
+
+        Aion::Vector3 m_horizontalVelocity{0.0f};
+        float m_verticalVelocity = 0.0f;
+        bool m_isGrounded = true;
+
+        bool m_useSimulatedInput = false;
+        float m_simulatedForward = 0.0f;
+        float m_simulatedRight = 0.0f;
+        bool m_simulatedJump = false;
+    };
+} // namespace BlockJumper
