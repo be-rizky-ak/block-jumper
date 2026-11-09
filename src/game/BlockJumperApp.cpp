@@ -78,6 +78,8 @@ namespace BlockJumper
         {
             dt = 0.05f; // Clamp delta time to avoid simulation jumps during screenshot disk I/O
         }
+
+        m_gameScene.Update(dt);
     }
 
     void BlockJumperApp::OnRender()

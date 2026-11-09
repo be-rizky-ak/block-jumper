@@ -75,12 +75,31 @@ namespace BlockJumper
     };
 
     /**
+     * @brief Endless level progression and segment generation settings.
+     */
+    struct EndlessConfig
+    {
+        // Number of upcoming segments to maintain ahead of the player
+        int UpcomingSegmentsAhead = 3;
+
+        // Number of completed segments to retain behind the player before recycling
+        int SegmentsRetainedBehind = 2;
+
+        // Distance threshold ahead of current segment exit to trigger generation
+        float GenerationDistanceThreshold = 18.0f;
+
+        // Connection jump gap between consecutive segments
+        float ConnectionGap = 1.2f;
+    };
+
+    /**
      * @brief Complete game configuration.
      */
     struct GameConfig
     {
         PlayerConfig Player;
         CameraConfig Camera;
+        EndlessConfig Endless;
 
         static std::vector<PlatformBox> CreateDefaultLevel()
         {

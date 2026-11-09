@@ -23,36 +23,20 @@ namespace BlockJumper
         auto cubeMesh = std::shared_ptr<Aion::Mesh>(Aion::MeshFactory::CreateCube());
 
         // -------------------------------------------------------------
-        // 1. Build Multi-Directional Platform World
+        // 1. Initialize Endless Level Progression & Starting Platform
         // -------------------------------------------------------------
-        m_platforms = GameConfig::CreateDefaultLevel();
-        m_platformObjects.clear();
+        m_levelManager.Initialize(scene, config, cubeMesh);
 
-        for (size_t i = 0; i < m_platforms.size(); ++i)
+        if (!m_levelManager.GetActiveSegments().empty() &&
+            !m_levelManager.GetActiveSegments().front()->GetSceneObjects().empty())
         {
-            const auto& plat = m_platforms[i];
-            auto platObj = std::make_shared<Aion::Object3D>(plat.Name);
-
-            auto mat = std::make_shared<Aion::Material>();
-            mat->BaseColor = plat.Color;
-            mat->MetallicFactor = plat.Metallic;
-            mat->RoughnessFactor = plat.Roughness;
-
-            platObj->AddComponent<Aion::MeshRenderer>(cubeMesh, mat);
-            platObj->Transform.Position = plat.Position;
-            platObj->Transform.Scale = plat.Dimensions;
-
-            scene->Add(platObj);
-            m_platformObjects.push_back(platObj);
-
-            if (i == 0)
-            {
-                m_mainPlatform = platObj;
-            }
+            m_mainPlatform = m_levelManager.GetActiveSegments().front()->GetSceneObjects().front();
         }
 
-        std::cout << "[GameScene] Created " << m_platforms.size()
-                  << " multi-directional platforms, elevated sections, and obstacles." << std::endl;
+        std::cout << "[GameScene] Endless level progression initialized with "
+                  << m_levelManager.GetActivePlatforms().size()
+                  << " initial platforms across " << m_levelManager.GetActiveSegmentsCount()
+                  << " active segments." << std::endl;
 
         // -------------------------------------------------------------
         // 2. Player Character (Primitive 3D Block)
@@ -72,7 +56,7 @@ namespace BlockJumper
 
         m_playerController = m_player->AddComponent<PlayerController>(
             config.Player,
-            m_platforms,
+            m_levelManager.GetActivePlatforms(),
             config.Camera.YawDegrees);
 
         scene->Add(m_player);
@@ -105,5 +89,19 @@ namespace BlockJumper
                   << config.Camera.YawDegrees << " deg, FOV="
                   << config.Camera.Fov << " deg)." << std::endl;
         std::cout << "[GameScene] Isometric scene setup complete." << std::endl;
+    }
+
+    void GameScene::Update(float /*deltaTime*/)
+    {
+        if (!m_player)
+        {
+            return;
+        }
+
+        bool platformsChanged = m_levelManager.Update(m_player->Transform.Position);
+        if (platformsChanged && m_playerController)
+        {
+            m_playerController->SetPlatforms(m_levelManager.GetActivePlatforms());
+        }
     }
 } // namespace BlockJumper
