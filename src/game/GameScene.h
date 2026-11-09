@@ -3,6 +3,8 @@
 #include <memory>
 #include <vector>
 
+#include "Aion/Renderer/EnvironmentMap.h"
+#include "Aion/Renderer/Renderer.h"
 #include "Aion/Scene/Object3D.h"
 #include "Aion/Scene/Scene.h"
 #include "camera/FollowCamera.h"
@@ -13,18 +15,49 @@
 #include "player/PlayerAnimationController.h"
 #include "player/PlayerController.h"
 #include "ui/GameOverUI.h"
+#include "vfx/VisualEffectsSystem.h"
+
+namespace Aion
+{
+    class Model;
+}
 
 namespace BlockJumper
 {
+    enum class SkyboxTheme
+    {
+        None,
+        Grassland,
+        Snow
+    };
+
     class GameScene
     {
     public:
         GameScene() = default;
+        ~GameScene() = default;
 
         /**
          * @brief Builds and populates the scene with player, multi-directional platforms, and isometric camera.
          */
-        void Setup(Aion::Scene* scene, const GameConfig& config, float aspectRatio);
+        void Setup(Aion::Scene* scene, const GameConfig& config, float aspectRatio, Aion::Renderer* renderer = nullptr);
+
+        /**
+         * @brief Builds the scene reusing preloaded assets (skybox, character model).
+         */
+        void SetupWithPreloaded(
+            Aion::Scene* scene,
+            const GameConfig& config,
+            float aspectRatio,
+            Aion::Renderer* renderer,
+            std::shared_ptr<Aion::EnvironmentMap> grassEnvMap,
+            std::shared_ptr<Aion::EnvironmentMap> snowEnvMap = nullptr,
+            std::shared_ptr<Aion::Model> charModel = nullptr);
+
+        /**
+         * @brief Cleans up GPU and scene resources.
+         */
+        void Shutdown();
 
         /**
          * @brief Updates endless level progression and synchronizes active platform collision.
@@ -60,6 +93,8 @@ namespace BlockJumper
         LevelManager& GetLevelManager() { return m_levelManager; }
         const LevelManager& GetLevelManager() const { return m_levelManager; }
         GameOverUI& GetGameOverUI() { return m_gameOverUI; }
+        VisualEffectsSystem& GetVFXSystem() { return m_vfxSystem; }
+        const VisualEffectsSystem& GetVFXSystem() const { return m_vfxSystem; }
 
         int GetDeathCount() const { return m_deathCount; }
         int GetRetryCount() const { return m_retryCount; }
@@ -68,6 +103,10 @@ namespace BlockJumper
         const SaveManager& GetSaveManager() const { return m_saveManager; }
         float GetFinalRunDistance() const { return m_finalRunDistance; }
         bool IsNewRecord() const { return m_isNewRecord; }
+
+        SkyboxTheme GetCurrentSkyboxTheme() const { return m_currentSkyboxTheme; }
+        std::shared_ptr<Aion::EnvironmentMap> GetGrasslandSkybox() const { return m_grassEnvMap; }
+        std::shared_ptr<Aion::EnvironmentMap> GetSnowSkybox() const { return m_snowEnvMap; }
 
     private:
         std::shared_ptr<Aion::Object3D> m_player;
@@ -79,12 +118,21 @@ namespace BlockJumper
         PlayerAnimationController* m_playerAnimController = nullptr;
         FollowCamera* m_followCamera = nullptr;
 
+        Aion::Renderer* m_renderer = nullptr;
+        std::shared_ptr<Aion::EnvironmentMap> m_grassEnvMap;
+        std::shared_ptr<Aion::EnvironmentMap> m_snowEnvMap;
+        SkyboxTheme m_currentSkyboxTheme = SkyboxTheme::None;
+
         GameState m_gameState = GameState::Playing;
         GameOverUI m_gameOverUI;
+        VisualEffectsSystem m_vfxSystem;
         GameConfig m_config;
         SaveManager m_saveManager;
 
         float m_fallTimer = 0.0f;
+        float m_gameOverDuration = 0.0f;
+        float m_stageMilestoneTimer = 0.0f;
+        int m_lastDifficulty = 1;
         float m_finalRunDistance = 0.0f;
         bool m_isNewRecord = false;
         int m_deathCount = 0;

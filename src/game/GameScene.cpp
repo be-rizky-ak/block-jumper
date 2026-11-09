@@ -4,7 +4,9 @@
 #include <iostream>
 
 #include "Aion/Assets/AssetManager.h"
+#include "Aion/Assets/Image.h"
 #include "Aion/Assets/MeshFactory.h"
+#include "Aion/Core/TaskSystem.h"
 #include "Aion/Importers/ModelImporter.h"
 #include "Aion/Math/Math.h"
 #include "Aion/Math/Quaternion.h"
@@ -15,18 +17,95 @@
 
 namespace BlockJumper
 {
-    void GameScene::Setup(Aion::Scene* scene, const GameConfig& config, float aspectRatio)
+    void GameScene::Setup(Aion::Scene* scene, const GameConfig& config, float aspectRatio, Aion::Renderer* renderer)
+    {
+        SetupWithPreloaded(scene, config, aspectRatio, renderer, nullptr, nullptr, nullptr);
+    }
+
+    void GameScene::SetupWithPreloaded(
+        Aion::Scene* scene,
+        const GameConfig& config,
+        float aspectRatio,
+        Aion::Renderer* renderer,
+        std::shared_ptr<Aion::EnvironmentMap> grassEnvMap,
+        std::shared_ptr<Aion::EnvironmentMap> snowEnvMap,
+        std::shared_ptr<Aion::Model> charModel)
     {
         if (!scene)
         {
             return;
         }
 
+        m_renderer = renderer;
         m_config = config;
         m_gameState = GameState::Playing;
         m_fallTimer = 0.0f;
 
         std::cout << "[GameScene] Initializing 2.5D Isometric Block Jumper scene..." << std::endl;
+
+        auto resolveAsset = [](const std::string& path) -> std::string {
+            if (std::filesystem::exists(path)) return path;
+            if (std::filesystem::exists("games/BlockJumper/" + path)) return "games/BlockJumper/" + path;
+            if (std::filesystem::exists("../" + path)) return "../" + path;
+            if (std::filesystem::exists("../games/BlockJumper/" + path)) return "../games/BlockJumper/" + path;
+            if (std::filesystem::exists("../../games/BlockJumper/" + path)) return "../../games/BlockJumper/" + path;
+            if (std::filesystem::exists("block-jumper-stagging/" + path)) return "block-jumper-stagging/" + path;
+            return path;
+        };
+
+        // Initialize persistent skybox environment maps
+        if (m_renderer)
+        {
+            if (grassEnvMap)
+            {
+                m_grassEnvMap = grassEnvMap;
+            }
+            else
+            {
+                std::string grassSkyPath = resolveAsset("assets/textures/kenney_skyboxes/skyboxes/skybox-day.png");
+                m_grassEnvMap = Aion::EnvironmentMap::CreateFromEquirectangular(grassSkyPath);
+            }
+
+            if (snowEnvMap)
+            {
+                m_snowEnvMap = snowEnvMap;
+            }
+            else
+            {
+                std::string snowSkyPath = resolveAsset("assets/textures/kenney_skyboxes/skyboxes/skybox-morning.png");
+                // Asynchronously decode secondary skybox on TaskSystem worker thread
+                Aion::TaskSystem::Run([this, snowSkyPath]() {
+                    std::cout << "[GameScene] Decoding Snow skybox (4096x2048) asynchronously on TaskSystem worker thread..." << std::endl;
+                    auto snowImage = Aion::Image::Load(snowSkyPath, true, false);
+                    Aion::TaskSystem::PostToMainThread([this, snowSkyPath, snowImage]() {
+                        if (snowImage && snowImage->IsValid())
+                        {
+                            m_snowEnvMap = Aion::EnvironmentMap::CreateFromImage(snowImage);
+                            std::cout << "[GameScene] Snow skybox GPU cubemap initialized on main thread via TaskSystem handoff." << std::endl;
+                        }
+                        else
+                        {
+                            m_snowEnvMap = Aion::EnvironmentMap::CreateFromEquirectangular(snowSkyPath);
+                        }
+                    });
+                });
+            }
+
+            if (m_grassEnvMap && m_grassEnvMap->IsValid())
+            {
+                m_renderer->SetEnvironmentMap(m_grassEnvMap);
+                m_renderer->SetShowSkybox(true);
+                m_renderer->SetIBLEnabled(false);
+                m_currentSkyboxTheme = SkyboxTheme::Grassland;
+                std::cout << "[GameScene] Initialized persistent Grassland/Forest skybox (skybox-day.png)." << std::endl;
+                std::cout << "[Diagnostics] GPU Texture ID: " << m_grassEnvMap->GetEnvironmentCubemap()
+                          << " | Skybox rendering enabled (ShowSkybox=true, IBL=false)." << std::endl;
+            }
+            else
+            {
+                std::cout << "[GameScene] Warning: Failed to load Grassland skybox." << std::endl;
+            }
+        }
 
         // Shared primitive cube mesh for 3D Kenney-style block geometry
         auto cubeMesh = std::shared_ptr<Aion::Mesh>(Aion::MeshFactory::CreateCube());
@@ -50,24 +129,27 @@ namespace BlockJumper
         // -------------------------------------------------------------
         // 2. Player Character (Kenney 3D Character)
         // -------------------------------------------------------------
-        std::string rawCharPath = "assets/models/kenney_mini-characters/models/character-male-a.glb";
-        std::string charPath = rawCharPath;
-        if (!std::filesystem::exists(charPath))
+        if (!charModel)
         {
-            if (std::filesystem::exists("block-jumper-stagging/" + rawCharPath))
-            {
-                charPath = "block-jumper-stagging/" + rawCharPath;
-            }
-            else if (std::filesystem::exists("../" + rawCharPath))
-            {
-                charPath = "../" + rawCharPath;
-            }
+            std::string rawCharPath = "assets/models/kenney_mini-characters/models/character-male-a.glb";
+            std::string charPath = resolveAsset(rawCharPath);
+            std::cout << "[GameScene] Loading Kenney 3D player character: " << charPath << std::endl;
+            charModel = Aion::AssetManager::LoadModel(charPath);
         }
-        std::cout << "[GameScene] Loading Kenney 3D player character: " << charPath << std::endl;
-        auto charModel = Aion::AssetManager::LoadModel(charPath);
 
         if (charModel)
         {
+            // Tune character material properties for clean visual readability and contrast
+            for (const auto& mat : charModel->GetMaterials())
+            {
+                if (mat)
+                {
+                    mat->BaseColor = Aion::Vector4(1.22f, 1.22f, 1.22f, 1.0f);
+                    mat->RoughnessFactor = 0.50f;
+                    mat->EmissiveFactor = Aion::Vector3(0.08f, 0.08f, 0.08f);
+                }
+            }
+
             m_player = Aion::ModelImporter::CreateModelObject(charModel);
             if (m_player)
             {
@@ -146,9 +228,13 @@ namespace BlockJumper
         scene->SetActiveCamera(cameraComponent);
 
         // -------------------------------------------------------------
-        // 4. Initialize Game Over UI Overlay
+        // 4. Initialize Game Over UI Overlay and Visual Effects System
         // -------------------------------------------------------------
         m_gameOverUI.Initialize();
+        m_vfxSystem.Initialize();
+        m_stageMilestoneTimer = 0.0f;
+        m_lastDifficulty = 1;
+        m_gameOverDuration = 0.0f;
 
         std::cout << "[GameScene] Elevated isometric camera initialized (Pitch="
                   << config.Camera.PitchDegrees << " deg, Yaw="
@@ -188,6 +274,7 @@ namespace BlockJumper
         }
 
         m_gameState = GameState::GameOver;
+        m_gameOverDuration = 0.0f;
 
         // Freeze player simulation cleanly
         if (m_playerController)
@@ -226,9 +313,13 @@ namespace BlockJumper
         // 1. Reset Game State & Counters
         m_gameState = GameState::Playing;
         m_fallTimer = 0.0f;
+        m_gameOverDuration = 0.0f;
+        m_stageMilestoneTimer = 0.0f;
+        m_lastDifficulty = 1;
         m_finalRunDistance = 0.0f;
         m_isNewRecord = false;
         m_retryCount++;
+        m_vfxSystem.Reset();
 
         // 2. Reset Player Kinematics, Velocity, and Orientation
         if (m_playerController && m_player)
@@ -262,6 +353,13 @@ namespace BlockJumper
             m_playerController->SetPlatforms(m_levelManager.GetActivePlatforms());
         }
 
+        // 6. Restore Grassland skybox on run reset
+        if (m_renderer && m_grassEnvMap && m_grassEnvMap->IsValid() && m_currentSkyboxTheme != SkyboxTheme::Grassland)
+        {
+            m_renderer->SetEnvironmentMap(m_grassEnvMap);
+            m_currentSkyboxTheme = SkyboxTheme::Grassland;
+        }
+
         std::cout << "[GameScene] Run reset complete. State: Playing. Restored to initial difficulty ("
                   << m_levelManager.GetDifficultyStageName(m_levelManager.GetCurrentDifficulty())
                   << ") with " << m_levelManager.GetActivePlatforms().size() << " initial platforms." << std::endl;
@@ -272,6 +370,28 @@ namespace BlockJumper
         if (!m_player)
         {
             return;
+        }
+
+        // Decrement milestone feedback timer
+        if (m_stageMilestoneTimer > 0.0f)
+        {
+            m_stageMilestoneTimer -= deltaTime;
+        }
+
+        // Detect jump and landing events for visual effects
+        if (m_playerController)
+        {
+            Aion::Vector3 feetPos = m_player->Transform.Position;
+            feetPos.y -= 0.5f;
+
+            if (m_playerController->JustJumped())
+            {
+                m_vfxSystem.TriggerJumpDust(feetPos);
+            }
+            else if (m_playerController->JustLanded())
+            {
+                m_vfxSystem.TriggerLandingBurst(feetPos, m_playerController->GetVerticalVelocity());
+            }
         }
 
         // 1. Playing State
@@ -290,11 +410,44 @@ namespace BlockJumper
             {
                 m_playerController->SetPlatforms(m_levelManager.GetActivePlatforms());
             }
+
+            // Detect difficulty milestone progression
+            int currentDiff = m_levelManager.GetCurrentDifficulty();
+            if (currentDiff > m_lastDifficulty)
+            {
+                m_stageMilestoneTimer = 1.2f; // Trigger visual emphasis on HUD
+                m_lastDifficulty = currentDiff;
+            }
+
+            // Synchronize skybox theme with difficulty progression
+            if (m_renderer)
+            {
+                int diff = m_levelManager.GetCurrentDifficulty();
+                if (diff >= 4 && m_currentSkyboxTheme != SkyboxTheme::Snow)
+                {
+                    if (m_snowEnvMap && m_snowEnvMap->IsValid())
+                    {
+                        m_renderer->SetEnvironmentMap(m_snowEnvMap);
+                        m_currentSkyboxTheme = SkyboxTheme::Snow;
+                        std::cout << "[GameScene] Transitioned skybox to Snow/Mountain alpine theme (skybox-morning.png)." << std::endl;
+                    }
+                }
+                else if (diff < 4 && m_currentSkyboxTheme != SkyboxTheme::Grassland)
+                {
+                    if (m_grassEnvMap && m_grassEnvMap->IsValid())
+                    {
+                        m_renderer->SetEnvironmentMap(m_grassEnvMap);
+                        m_currentSkyboxTheme = SkyboxTheme::Grassland;
+                        std::cout << "[GameScene] Restored skybox to Grassland theme (skybox-day.png)." << std::endl;
+                    }
+                }
+            }
         }
         // 2. Falling State: Intentional graceful falling transition under natural gravity
         else if (m_gameState == GameState::Falling)
         {
             m_fallTimer += deltaTime;
+            m_vfxSystem.TriggerFallingStreak(m_player->Transform.Position);
 
             // Physics continues naturally; no segment spawning or difficulty progression occurs
             if (m_fallTimer >= m_config.Player.FallTransitionDuration ||
@@ -306,15 +459,31 @@ namespace BlockJumper
         // 3. GameOver State: Simulation is cleanly frozen; poll for Retry action
         else if (m_gameState == GameState::GameOver)
         {
+            m_gameOverDuration += deltaTime;
             if (m_gameOverUI.CheckRetryAction(screenWidth, screenHeight))
             {
                 TriggerRetry();
             }
         }
+
+        // Update active visual effect particles
+        m_vfxSystem.Update(deltaTime);
     }
 
     void GameScene::RenderUI(int windowWidth, int windowHeight)
     {
+        // 1. Render 3D Visual Effects in world space before 2D screen UI
+        if (m_cameraObject)
+        {
+            auto* camComp = m_cameraObject->GetComponent<Aion::CameraComponent>();
+            if (camComp)
+            {
+                Aion::Matrix4 viewProj = camComp->GetProjectionMatrix() * camComp->GetViewMatrix();
+                m_vfxSystem.Render(viewProj);
+            }
+        }
+
+        // 2. Render 2D UI Overlay
         if (m_gameState == GameState::Playing || m_gameState == GameState::Falling)
         {
             m_gameOverUI.RenderHUD(
@@ -323,7 +492,8 @@ namespace BlockJumper
                 m_levelManager.GetForwardProgress(),
                 m_levelManager.GetCurrentDifficulty(),
                 m_levelManager.GetDifficultyStageName(m_levelManager.GetCurrentDifficulty()),
-                m_saveManager.GetBestDistance());
+                m_saveManager.GetBestDistance(),
+                m_stageMilestoneTimer);
         }
         else if (m_gameState == GameState::GameOver)
         {
@@ -334,7 +504,20 @@ namespace BlockJumper
                 m_saveManager.GetBestDistance(),
                 m_isNewRecord,
                 m_levelManager.GetCompletedSegments(),
-                m_levelManager.GetDifficultyStageName(m_levelManager.GetCurrentDifficulty()));
+                m_levelManager.GetDifficultyStageName(m_levelManager.GetCurrentDifficulty()),
+                m_gameOverDuration);
         }
+    }
+
+    void GameScene::Shutdown()
+    {
+        m_gameOverUI.Shutdown();
+        m_vfxSystem.Shutdown();
+        m_grassEnvMap.reset();
+        m_snowEnvMap.reset();
+        m_player.reset();
+        m_mainPlatform.reset();
+        m_cameraObject.reset();
+        m_renderer = nullptr;
     }
 } // namespace BlockJumper

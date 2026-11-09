@@ -58,6 +58,11 @@ if ($SdkPath) {
     $CMakeArgs += "-DCMAKE_PREFIX_PATH=$SdkPath"
 }
 $CMakeArgs += "-DCMAKE_BUILD_TYPE=$BuildConfig"
+if ($BuildConfig -eq "Release" -or $BuildConfig -eq "RelWithDebInfo" -or $BuildConfig -eq "MinSizeRel") {
+    $CMakeArgs += "-DAION_ENABLE_CONSOLE_LOG=OFF"
+} else {
+    $CMakeArgs += "-DAION_ENABLE_CONSOLE_LOG=ON"
+}
 
 Write-Host "[BUILD] Configuring CMake..." -ForegroundColor Green
 & cmake @CMakeArgs

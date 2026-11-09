@@ -1,47 +1,60 @@
 #pragma once
 
 #include <cstdint>
+#include <memory>
 #include <string>
 #include <vector>
 
 #include "Aion/Math/Vector4.h"
 
+namespace Aion
+{
+    class Shader;
+    class Texture;
+    class VertexArray;
+}
+
 namespace BlockJumper
 {
     /**
-     * @brief Simple, readable Game Over UI with an interactive Retry action.
-     * Renders directly via modern OpenGL 3.3 Core Profile in the aesthetic
-     * of Block Jumper (crisp 3D/2D block geometry, high contrast PBR colors).
+     * @brief Polished Kenney UI interface system for Block Jumper.
+     * Renders responsive in-game HUD and Game Over screen using Kenney UI Pack
+     * 9-slice panels, buttons, icons, and the official Kenney Future typography.
      */
     class GameOverUI
     {
     public:
-        GameOverUI() = default;
+        GameOverUI();
         ~GameOverUI();
 
         /**
-         * @brief Initializes OpenGL shaders, VAO, and VBO for UI rendering.
+         * @brief Initializes OpenGL shaders, VAO, VBO, and loads Kenney UI textures & font atlas.
          */
         void Initialize();
 
         /**
-         * @brief Cleans up GPU resources.
+         * @brief Cleans up GPU texture and buffer resources.
          */
         void Shutdown();
 
         /**
          * @brief Checks if the Retry action was requested via keyboard (R, Space, Enter)
          * or mouse click on the Retry button.
-         *
-         * @param screenWidth Current viewport width.
-         * @param screenHeight Current viewport height.
-         * @return true if Retry action was triggered.
          */
-        bool CheckRetryAction(int screenWidth, int screenHeight) const;
+        bool CheckRetryAction(int screenWidth, int screenHeight);
 
         /**
-         * @brief Renders the in-game HUD at top-left during active gameplay.
-         * Displays current run distance, best distance, and difficulty stage.
+         * @brief Renders a clean Kenney-styled loading indicator.
+         */
+        void RenderLoading(
+            int screenWidth,
+            int screenHeight,
+            float progress,
+            const std::string& statusText = "LOADING...");
+
+        /**
+         * @brief Renders the redesigned in-game HUD at top-left during active gameplay.
+         * Displays current run distance, best distance, difficulty stage, and milestone feedback.
          */
         void RenderHUD(
             int screenWidth,
@@ -49,11 +62,12 @@ namespace BlockJumper
             float currentDistance,
             int difficultyStage,
             const char* stageName,
-            float bestDistance);
+            float bestDistance,
+            float stageMilestoneTimer = 0.0f);
 
         /**
          * @brief Renders the enhanced Game Over overlay presenting run distance,
-         * best distance record, new-record notification, cleared segments, and Retry action.
+         * best distance record, new-record notification, cleared segments, and interactive Retry button.
          */
         void RenderGameOver(
             int screenWidth,
@@ -62,15 +76,11 @@ namespace BlockJumper
             float bestDistance,
             bool isNewRecord,
             int completedSegments = 0,
-            const char* difficultyStage = "Easy");
+            const char* difficultyStage = "Easy",
+            float gameOverDuration = 1.0f);
 
         /**
-         * @brief Renders the Game Over overlay (backward-compatible signature).
-         *
-         * @param screenWidth Viewport width.
-         * @param screenHeight Viewport height.
-         * @param completedSegments Segments cleared in the run.
-         * @param difficultyStage Current difficulty stage name.
+         * @brief Backward-compatible Render() signature for existing tests and call sites.
          */
         void Render(
             int screenWidth,
@@ -83,36 +93,80 @@ namespace BlockJumper
          */
         bool IsMouseOverButton(float mouseX, float mouseY, int screenWidth, int screenHeight) const;
 
+        /**
+         * @brief Sets button visual state override for deterministic testing and rendering.
+         * -1: Auto (dynamic input), 0: Normal, 1: Hover, 2: Pressed.
+         */
+        void SetButtonVisualStateOverride(int state) { m_buttonVisualStateOverride = state; }
+        int GetButtonVisualStateOverride() const { return m_buttonVisualStateOverride; }
+
     private:
         void EnsureInitialized();
-        void AddQuad(
+        std::shared_ptr<Aion::Texture> LoadTexture(const std::string& relativePath);
+        std::shared_ptr<Aion::Texture> LoadSVGTexture(const std::string& relativePath, int targetWidth = 0, int targetHeight = 0);
+
+        void AddColoredQuad(
             float x0, float y0, float x1, float y1,
             const Aion::Vector4& color,
             std::vector<float>& vertexBuffer);
-        void DrawGlyph(
-            char c,
-            float x, float y,
-            float pixelW, float pixelH,
-            const Aion::Vector4& color,
+
+        void AddTexturedQuad(
+            float x0, float y0, float x1, float y1,
+            float u0, float v0, float u1, float v1,
+            const Aion::Vector4& tint,
             std::vector<float>& vertexBuffer);
-        void DrawString(
+
+        void Add9Slice(
+            float x0, float y0, float x1, float y1,
+            float cornerPx,
+            float texW, float texH,
+            const Aion::Vector4& tint,
+            std::vector<float>& vertexBuffer,
+            int screenW, int screenH);
+
+        void DrawKenneyString(
             const std::string& text,
             float startX, float startY,
-            float pixelW, float pixelH,
-            float letterSpacing,
+            float scale,
             const Aion::Vector4& color,
-            std::vector<float>& vertexBuffer);
+            std::vector<float>& vertexBuffer,
+            int screenW, int screenH,
+            float letterSpacing = 0.0f);
+
+        float MeasureKenneyString(
+            const std::string& text,
+            float scale,
+            int screenW,
+            float letterSpacing = 0.0f) const;
+
+        void FlushBatch(const std::shared_ptr<Aion::Texture>& texture, const std::vector<float>& vertexBuffer);
 
     private:
         bool m_initialized = false;
-        uint32_t m_shaderProgram = 0;
-        uint32_t m_vao = 0;
-        uint32_t m_vbo = 0;
+        std::unique_ptr<Aion::Shader> m_shader;
+        std::unique_ptr<Aion::VertexArray> m_vertexArray;
 
-        // Button bounds in Normalized Device Coordinates [-1.0, 1.0]
-        float m_btnMinX = -0.26f;
-        float m_btnMaxX =  0.26f;
-        float m_btnMinY = -0.22f;
-        float m_btnMaxY = -0.06f;
+        // Kenney UI Textures
+        std::shared_ptr<Aion::Texture> m_texFontAtlas;
+        std::shared_ptr<Aion::Texture> m_texHudPanel;
+        std::shared_ptr<Aion::Texture> m_texCardPanel;
+        std::shared_ptr<Aion::Texture> m_texBtnNormal;
+        std::shared_ptr<Aion::Texture> m_texBtnHover;
+        std::shared_ptr<Aion::Texture> m_texBtnPressed;
+        std::shared_ptr<Aion::Texture> m_texStarGold;
+        std::shared_ptr<Aion::Texture> m_texIconRepeat;
+        std::shared_ptr<Aion::Texture> m_texStageIndicator;
+        std::shared_ptr<Aion::Texture> m_texDivider;
+        std::shared_ptr<Aion::Texture> m_texWhiteFallback;
+
+        // Dynamic responsive button bounds in NDC
+        mutable float m_btnMinX = -0.25f;
+        mutable float m_btnMaxX =  0.25f;
+        mutable float m_btnMinY = -0.22f;
+        mutable float m_btnMaxY = -0.08f;
+
+        bool m_buttonPressed = false;
+        int m_buttonVisualStateOverride = -1;
+        float m_gameOverAnimTime = 0.0f;
     };
 } // namespace BlockJumper

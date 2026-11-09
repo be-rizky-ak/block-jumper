@@ -19,6 +19,8 @@ set(BLOCK_JUMPER_SOURCES
     src/player/PlayerAnimationController.cpp
     src/camera/FollowCamera.cpp
     src/ui/GameOverUI.cpp
+    src/ui/LoadingScreen.cpp
+    src/vfx/VisualEffectsSystem.cpp
 )
 
 set(BLOCK_JUMPER_HEADERS
@@ -34,6 +36,9 @@ set(BLOCK_JUMPER_HEADERS
     src/player/PlayerAnimationController.h
     src/camera/FollowCamera.h
     src/ui/GameOverUI.h
+    src/ui/LoadingScreen.h
+    src/ui/KenneyFontAtlas.h
+    src/vfx/VisualEffectsSystem.h
 )
 
 add_executable(BlockJumper
@@ -45,10 +50,53 @@ target_include_directories(BlockJumper PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
 
+# Compiler warning settings
+if(MSVC)
+    target_compile_options(BlockJumper PRIVATE /W4 /permissive-)
+else()
+    target_compile_options(BlockJumper PRIVATE -Wall -Wextra -Wpedantic)
+endif()
+
+# Windows executable subsystem:
+# - Debug: Console subsystem to provide developer diagnostics during development
+# - Release / RelWithDebInfo / MinSizeRel: Windows GUI subsystem (suppresses standalone console window)
+if(WIN32)
+    set_target_properties(BlockJumper PROPERTIES
+        WIN32_EXECUTABLE $<NOT:$<CONFIG:Debug>>
+    )
+    if(MSVC)
+        target_link_options(BlockJumper PRIVATE
+            $<$<NOT:$<CONFIG:Debug>>:/ENTRY:mainCRTStartup>
+        )
+    endif()
+endif()
+
+# Console logging sink configuration:
+# - Debug: Enabled by default (AION_ENABLE_CONSOLE_LOG=ON)
+# - Release / RelWithDebInfo / MinSizeRel: Disabled by default (AION_ENABLE_CONSOLE_LOG=OFF)
+# - Explicit override: -DAION_ENABLE_CONSOLE_LOG=ON or -DAION_ENABLE_CONSOLE_LOG=OFF
+set(AION_ENABLE_CONSOLE_LOG "AUTO" CACHE STRING "Enable engine console logging (AUTO, ON, or OFF). Defaults to ON for Debug, OFF for Release/RelWithDebInfo/MinSizeRel.")
+set_property(CACHE AION_ENABLE_CONSOLE_LOG PROPERTY STRINGS "AUTO" "ON" "OFF")
+
 # Link against public AionEngine target
 target_link_libraries(BlockJumper PRIVATE
     Aion::AionEngine
 )
+
+if(NOT AION_ENABLE_CONSOLE_LOG STREQUAL "AUTO" AND NOT AION_ENABLE_CONSOLE_LOG STREQUAL "")
+    if(AION_ENABLE_CONSOLE_LOG)
+        set(_AION_CONSOLE_LOG_DEF "1")
+    else()
+        set(_AION_CONSOLE_LOG_DEF "0")
+    endif()
+    get_target_property(_aion_defs Aion::AionEngine INTERFACE_COMPILE_DEFINITIONS)
+    if(_aion_defs)
+        string(REGEX REPLACE "AION_ENABLE_CONSOLE_LOG=[^;]+" "AION_ENABLE_CONSOLE_LOG=${_AION_CONSOLE_LOG_DEF}" _aion_defs "${_aion_defs}")
+        set_target_properties(Aion::AionEngine PROPERTIES INTERFACE_COMPILE_DEFINITIONS "${_aion_defs}")
+    else()
+        set_target_properties(Aion::AionEngine PROPERTIES INTERFACE_COMPILE_DEFINITIONS "AION_ENABLE_CONSOLE_LOG=${_AION_CONSOLE_LOG_DEF}")
+    endif()
+endif()
 
 # Copy runtime shaders to executable assets directory if available
 set(AION_RUNTIME_SHADER_VERT "")

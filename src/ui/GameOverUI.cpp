@@ -1,6 +1,8 @@
 #include "GameOverUI.h"
 
+#include <algorithm>
 #include <cmath>
+#include <filesystem>
 #include <iostream>
 #include <string>
 #include <vector>
@@ -8,233 +10,99 @@
 #include "Aion/Core/Input.h"
 #include "Aion/Core/KeyCodes.h"
 #include "Aion/Core/MouseCodes.h"
-#include "glad/glad.h"
+#include "Aion/Renderer/RenderCommand.h"
+#include "Aion/Renderer/Shader.h"
+#include "Aion/Renderer/Texture.h"
+#include "Aion/Renderer/TextureLibrary.h"
+#include "Aion/Renderer/VertexArray.h"
+#include "ui/KenneyFontAtlas.h"
 
 namespace BlockJumper
 {
     namespace
     {
-        // 5x7 bitmap font definitions for uppercase alphanumeric and common symbols
-        // Each character is represented by 7 rows, where each row has 5 bits (bit 4 to bit 0).
-        uint8_t GetGlyphRow(char c, int row)
+        std::string ResolveUIPath(const std::string& path)
         {
-            if (row < 0 || row >= 7) return 0;
-            char uc = static_cast<char>(std::toupper(static_cast<unsigned char>(c)));
+            const std::vector<std::string> searchPrefixes = {
+                "",
+                "games/BlockJumper/",
+                "assets/",
+                "build/games/BlockJumper/",
+                "../",
+                "../games/BlockJumper/",
+                "../../games/BlockJumper/",
+                "prorotype-stagging/games/BlockJumper/",
+                "../prorotype-stagging/games/BlockJumper/",
+                "block-jumper-stagging/",
+            };
 
-            switch (uc)
+            for (const auto& prefix : searchPrefixes)
             {
-                case 'A': {
-                    static const uint8_t g[7] = {0x0E, 0x11, 0x11, 0x1F, 0x11, 0x11, 0x11};
-                    return g[row];
+                std::string candidate = prefix + path;
+                if (std::filesystem::exists(candidate))
+                {
+                    return candidate;
                 }
-                case 'B': {
-                    static const uint8_t g[7] = {0x1E, 0x11, 0x11, 0x1E, 0x11, 0x11, 0x1E};
-                    return g[row];
-                }
-                case 'C': {
-                    static const uint8_t g[7] = {0x0E, 0x11, 0x10, 0x10, 0x10, 0x11, 0x0E};
-                    return g[row];
-                }
-                case 'D': {
-                    static const uint8_t g[7] = {0x1C, 0x12, 0x11, 0x11, 0x11, 0x12, 0x1C};
-                    return g[row];
-                }
-                case 'E': {
-                    static const uint8_t g[7] = {0x1F, 0x10, 0x10, 0x1E, 0x10, 0x10, 0x1F};
-                    return g[row];
-                }
-                case 'F': {
-                    static const uint8_t g[7] = {0x1F, 0x10, 0x10, 0x1E, 0x10, 0x10, 0x10};
-                    return g[row];
-                }
-                case 'G': {
-                    static const uint8_t g[7] = {0x0E, 0x11, 0x10, 0x17, 0x11, 0x11, 0x0F};
-                    return g[row];
-                }
-                case 'H': {
-                    static const uint8_t g[7] = {0x11, 0x11, 0x11, 0x1F, 0x11, 0x11, 0x11};
-                    return g[row];
-                }
-                case 'I': {
-                    static const uint8_t g[7] = {0x0E, 0x04, 0x04, 0x04, 0x04, 0x04, 0x0E};
-                    return g[row];
-                }
-                case 'J': {
-                    static const uint8_t g[7] = {0x07, 0x02, 0x02, 0x02, 0x12, 0x12, 0x0C};
-                    return g[row];
-                }
-                case 'K': {
-                    static const uint8_t g[7] = {0x11, 0x12, 0x14, 0x18, 0x14, 0x12, 0x11};
-                    return g[row];
-                }
-                case 'L': {
-                    static const uint8_t g[7] = {0x10, 0x10, 0x10, 0x10, 0x10, 0x10, 0x1F};
-                    return g[row];
-                }
-                case 'M': {
-                    static const uint8_t g[7] = {0x11, 0x1B, 0x15, 0x11, 0x11, 0x11, 0x11};
-                    return g[row];
-                }
-                case 'N': {
-                    static const uint8_t g[7] = {0x11, 0x19, 0x15, 0x13, 0x11, 0x11, 0x11};
-                    return g[row];
-                }
-                case 'O': {
-                    static const uint8_t g[7] = {0x0E, 0x11, 0x11, 0x11, 0x11, 0x11, 0x0E};
-                    return g[row];
-                }
-                case 'P': {
-                    static const uint8_t g[7] = {0x1E, 0x11, 0x11, 0x1E, 0x10, 0x10, 0x10};
-                    return g[row];
-                }
-                case 'Q': {
-                    static const uint8_t g[7] = {0x0E, 0x11, 0x11, 0x11, 0x15, 0x12, 0x0D};
-                    return g[row];
-                }
-                case 'R': {
-                    static const uint8_t g[7] = {0x1E, 0x11, 0x11, 0x1E, 0x14, 0x12, 0x11};
-                    return g[row];
-                }
-                case 'S': {
-                    static const uint8_t g[7] = {0x0F, 0x10, 0x10, 0x0E, 0x01, 0x01, 0x1E};
-                    return g[row];
-                }
-                case 'T': {
-                    static const uint8_t g[7] = {0x1F, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04};
-                    return g[row];
-                }
-                case 'U': {
-                    static const uint8_t g[7] = {0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x0E};
-                    return g[row];
-                }
-                case 'V': {
-                    static const uint8_t g[7] = {0x11, 0x11, 0x11, 0x11, 0x11, 0x0A, 0x04};
-                    return g[row];
-                }
-                case 'W': {
-                    static const uint8_t g[7] = {0x11, 0x11, 0x11, 0x15, 0x15, 0x15, 0x0A};
-                    return g[row];
-                }
-                case 'X': {
-                    static const uint8_t g[7] = {0x11, 0x11, 0x0A, 0x04, 0x0A, 0x11, 0x11};
-                    return g[row];
-                }
-                case 'Y': {
-                    static const uint8_t g[7] = {0x11, 0x11, 0x0A, 0x04, 0x04, 0x04, 0x04};
-                    return g[row];
-                }
-                case 'Z': {
-                    static const uint8_t g[7] = {0x1F, 0x01, 0x02, 0x04, 0x08, 0x10, 0x1F};
-                    return g[row];
-                }
-                case '0': {
-                    static const uint8_t g[7] = {0x0E, 0x13, 0x15, 0x19, 0x11, 0x11, 0x0E};
-                    return g[row];
-                }
-                case '1': {
-                    static const uint8_t g[7] = {0x04, 0x0C, 0x04, 0x04, 0x04, 0x04, 0x0E};
-                    return g[row];
-                }
-                case '2': {
-                    static const uint8_t g[7] = {0x0E, 0x11, 0x01, 0x06, 0x08, 0x10, 0x1F};
-                    return g[row];
-                }
-                case '3': {
-                    static const uint8_t g[7] = {0x1F, 0x02, 0x04, 0x0E, 0x01, 0x11, 0x0E};
-                    return g[row];
-                }
-                case '4': {
-                    static const uint8_t g[7] = {0x02, 0x06, 0x0A, 0x12, 0x1F, 0x02, 0x02};
-                    return g[row];
-                }
-                case '5': {
-                    static const uint8_t g[7] = {0x1F, 0x10, 0x1E, 0x01, 0x01, 0x11, 0x0E};
-                    return g[row];
-                }
-                case '6': {
-                    static const uint8_t g[7] = {0x0E, 0x10, 0x10, 0x1E, 0x11, 0x11, 0x0E};
-                    return g[row];
-                }
-                case '7': {
-                    static const uint8_t g[7] = {0x1F, 0x01, 0x02, 0x04, 0x08, 0x08, 0x08};
-                    return g[row];
-                }
-                case '8': {
-                    static const uint8_t g[7] = {0x0E, 0x11, 0x11, 0x0E, 0x11, 0x11, 0x0E};
-                    return g[row];
-                }
-                case '9': {
-                    static const uint8_t g[7] = {0x0E, 0x11, 0x11, 0x0F, 0x01, 0x01, 0x0E};
-                    return g[row];
-                }
-                case ':': {
-                    static const uint8_t g[7] = {0x00, 0x04, 0x00, 0x00, 0x04, 0x00, 0x00};
-                    return g[row];
-                }
-                case '-': {
-                    static const uint8_t g[7] = {0x00, 0x00, 0x00, 0x1F, 0x00, 0x00, 0x00};
-                    return g[row];
-                }
-                case '[': {
-                    static const uint8_t g[7] = {0x0E, 0x08, 0x08, 0x08, 0x08, 0x08, 0x0E};
-                    return g[row];
-                }
-                case ']': {
-                    static const uint8_t g[7] = {0x0E, 0x02, 0x02, 0x02, 0x02, 0x02, 0x0E};
-                    return g[row];
-                }
-                case '|': {
-                    static const uint8_t g[7] = {0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04};
-                    return g[row];
-                }
-                case '/': {
-                    static const uint8_t g[7] = {0x01, 0x02, 0x02, 0x04, 0x08, 0x08, 0x10};
-                    return g[row];
-                }
-                case '!': {
-                    static const uint8_t g[7] = {0x04, 0x04, 0x04, 0x04, 0x00, 0x04, 0x00};
-                    return g[row];
-                }
-                case '*': {
-                    static const uint8_t g[7] = {0x00, 0x15, 0x0E, 0x1F, 0x0E, 0x15, 0x00};
-                    return g[row];
-                }
-                case '.': {
-                    static const uint8_t g[7] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x04, 0x00};
-                    return g[row];
-                }
-                default:
-                    return 0;
             }
+            return path;
         }
 
-        const char* s_VertexShaderSource = R"(#version 330 core
+        const char* s_UIVertexShader = R"(#version 330 core
 layout(location = 0) in vec2 aPos;
-layout(location = 1) in vec4 aColor;
+layout(location = 1) in vec2 aTexCoord;
+layout(location = 2) in vec4 aColor;
 
+out vec2 vTexCoord;
 out vec4 vColor;
 
 void main()
 {
     gl_Position = vec4(aPos, 0.0, 1.0);
+    vTexCoord = aTexCoord;
     vColor = aColor;
 }
 )";
 
-        const char* s_FragmentShaderSource = R"(#version 330 core
+        const char* s_UIFragmentShader = R"(#version 330 core
+in vec2 vTexCoord;
 in vec4 vColor;
 out vec4 FragColor;
 
+uniform sampler2D uTexture;
+uniform int uUseTexture;
+
 void main()
 {
-    FragColor = vColor;
+    if (uUseTexture == 1)
+    {
+        vec4 texColor = texture(uTexture, vTexCoord);
+        FragColor = texColor * vColor;
+    }
+    else
+    {
+        FragColor = vColor;
+    }
 }
 )";
     } // namespace
 
+    GameOverUI::GameOverUI() = default;
+
     GameOverUI::~GameOverUI()
     {
         Shutdown();
+    }
+
+    std::shared_ptr<Aion::Texture> GameOverUI::LoadTexture(const std::string& relativePath)
+    {
+        std::string resolved = ResolveUIPath(relativePath);
+        return Aion::TextureLibrary::Load(resolved);
+    }
+
+    std::shared_ptr<Aion::Texture> GameOverUI::LoadSVGTexture(const std::string& relativePath, int targetWidth, int targetHeight)
+    {
+        std::string resolved = ResolveUIPath(relativePath);
+        return Aion::TextureLibrary::LoadSVG(resolved, targetWidth, targetHeight);
     }
 
     void GameOverUI::Initialize()
@@ -244,39 +112,40 @@ void main()
             return;
         }
 
-        GLuint vs = glCreateShader(GL_VERTEX_SHADER);
-        glShaderSource(vs, 1, &s_VertexShaderSource, nullptr);
-        glCompileShader(vs);
+        m_shader = std::make_unique<Aion::Shader>(s_UIVertexShader, s_UIFragmentShader);
+        m_vertexArray = std::make_unique<Aion::VertexArray>();
+        m_vertexArray->SetLayout({2, 2, 4});
 
-        GLuint fs = glCreateShader(GL_FRAGMENT_SHADER);
-        glShaderSource(fs, 1, &s_FragmentShaderSource, nullptr);
-        glCompileShader(fs);
+        m_texWhiteFallback = Aion::TextureLibrary::GetWhiteTexture();
 
-        m_shaderProgram = glCreateProgram();
-        glAttachShader(m_shaderProgram, vs);
-        glAttachShader(m_shaderProgram, fs);
-        glLinkProgram(m_shaderProgram);
+        // Load font atlas texture (Kenney Future font atlas remains pre-rendered PNG)
+        m_texFontAtlas      = LoadTexture("assets/textures/kenney_ui-pack/png/kenney_future_atlas.png");
 
-        glDeleteShader(vs);
-        glDeleteShader(fs);
+        // Load all Kenney UI vector assets directly from original SVG files at runtime via Aion SVGImporter
+        std::string svgBase = "assets/textures/kenney_ui-pack/vector/";
+        m_texHudPanel       = LoadSVGTexture(svgBase + "Grey/button_rectangle_depth_flat.svg", 384, 128);
+        m_texCardPanel      = LoadSVGTexture(svgBase + "Grey/button_rectangle_depth_flat.svg", 576, 384);
+        m_texBtnNormal      = LoadSVGTexture(svgBase + "Green/button_rectangle_depth_flat.svg", 384, 128);
+        m_texBtnHover       = LoadSVGTexture(svgBase + "Green/button_rectangle_depth_gradient.svg", 384, 128);
+        m_texBtnPressed     = LoadSVGTexture(svgBase + "Green/button_rectangle_flat.svg", 384, 128);
+        m_texStarGold       = LoadSVGTexture(svgBase + "Yellow/star.svg", 256, 256);
+        m_texIconRepeat     = LoadSVGTexture(svgBase + "Extra/icon_repeat_light.svg", 256, 256);
+        m_texStageIndicator = LoadSVGTexture(svgBase + "Yellow/slide_horizontal_color_section.svg", 384, 64);
+        m_texDivider        = LoadSVGTexture(svgBase + "Extra/divider.svg", 384, 16);
 
-        glGenVertexArrays(1, &m_vao);
-        glGenBuffers(1, &m_vbo);
-
-        glBindVertexArray(m_vao);
-        glBindBuffer(GL_ARRAY_BUFFER, m_vbo);
-
-        // Position: 2 floats
-        glEnableVertexAttribArray(0);
-        glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 6 * sizeof(float), reinterpret_cast<void*>(0));
-
-        // Color: 4 floats
-        glEnableVertexAttribArray(1);
-        glVertexAttribPointer(1, 4, GL_FLOAT, GL_FALSE, 6 * sizeof(float), reinterpret_cast<void*>(2 * sizeof(float)));
-
-        glBindVertexArray(0);
-        glBindBuffer(GL_ARRAY_BUFFER, 0);
-
+        std::cout << "[GameOverUI] Initialized Kenney UI Pack with direct SVG vector rendering & Kenney Future font." << std::endl;
+        bool allLoaded = (m_texFontAtlas && m_texHudPanel && m_texCardPanel &&
+                          m_texBtnNormal && m_texBtnHover && m_texBtnPressed &&
+                          m_texStarGold && m_texIconRepeat && m_texStageIndicator &&
+                          m_texDivider);
+        if (allLoaded)
+        {
+            std::cout << "[GameOverUI] All 9 vector SVG UI textures and font atlas loaded successfully." << std::endl;
+        }
+        else
+        {
+            std::cerr << "[GameOverUI WARNING] Some UI vector assets failed to load! Check error logs above." << std::endl;
+        }
         m_initialized = true;
     }
 
@@ -287,21 +156,20 @@ void main()
             return;
         }
 
-        if (m_vbo != 0)
-        {
-            glDeleteBuffers(1, &m_vbo);
-            m_vbo = 0;
-        }
-        if (m_vao != 0)
-        {
-            glDeleteVertexArrays(1, &m_vao);
-            m_vao = 0;
-        }
-        if (m_shaderProgram != 0)
-        {
-            glDeleteProgram(m_shaderProgram);
-            m_shaderProgram = 0;
-        }
+        m_texFontAtlas.reset();
+        m_texHudPanel.reset();
+        m_texCardPanel.reset();
+        m_texBtnNormal.reset();
+        m_texBtnHover.reset();
+        m_texBtnPressed.reset();
+        m_texStarGold.reset();
+        m_texIconRepeat.reset();
+        m_texStageIndicator.reset();
+        m_texDivider.reset();
+        m_texWhiteFallback.reset();
+
+        m_vertexArray.reset();
+        m_shader.reset();
 
         m_initialized = false;
     }
@@ -312,6 +180,169 @@ void main()
         {
             Initialize();
         }
+    }
+
+    void GameOverUI::AddColoredQuad(
+        float x0, float y0, float x1, float y1,
+        const Aion::Vector4& color,
+        std::vector<float>& vertexBuffer)
+    {
+        float r = color.x, g = color.y, b = color.z, a = color.w;
+        float verts[48] = {
+            // Triangle 1
+            x0, y0, 0.0f, 0.0f, r, g, b, a,
+            x1, y0, 1.0f, 0.0f, r, g, b, a,
+            x1, y1, 1.0f, 1.0f, r, g, b, a,
+            // Triangle 2
+            x0, y0, 0.0f, 0.0f, r, g, b, a,
+            x1, y1, 1.0f, 1.0f, r, g, b, a,
+            x0, y1, 0.0f, 1.0f, r, g, b, a,
+        };
+        vertexBuffer.insert(vertexBuffer.end(), verts, verts + 48);
+    }
+
+    void GameOverUI::AddTexturedQuad(
+        float x0, float y0, float x1, float y1,
+        float u0, float v0, float u1, float v1,
+        const Aion::Vector4& tint,
+        std::vector<float>& vertexBuffer)
+    {
+        float r = tint.x, g = tint.y, b = tint.z, a = tint.w;
+        float verts[48] = {
+            // Triangle 1
+            x0, y0, u0, v0, r, g, b, a,
+            x1, y0, u1, v0, r, g, b, a,
+            x1, y1, u1, v1, r, g, b, a,
+            // Triangle 2
+            x0, y0, u0, v0, r, g, b, a,
+            x1, y1, u1, v1, r, g, b, a,
+            x0, y1, u0, v1, r, g, b, a,
+        };
+        vertexBuffer.insert(vertexBuffer.end(), verts, verts + 48);
+    }
+
+    void GameOverUI::Add9Slice(
+        float x0, float y0, float x1, float y1,
+        float cornerPx,
+        float texW, float texH,
+        const Aion::Vector4& tint,
+        std::vector<float>& vertexBuffer,
+        int screenW, int screenH)
+    {
+        float pixelW = 2.0f / static_cast<float>(screenW);
+        float pixelH = 2.0f / static_cast<float>(screenH);
+
+        float cornerW = std::min((x1 - x0) * 0.45f, cornerPx * pixelW);
+        float cornerH = std::min((y1 - y0) * 0.45f, cornerPx * pixelH);
+
+        float xa[4] = { x0, x0 + cornerW, x1 - cornerW, x1 };
+        float ya[4] = { y0, y0 + cornerH, y1 - cornerH, y1 };
+
+        float uCorn = cornerPx / texW;
+        float vCorn = cornerPx / texH;
+
+        float ua[4] = { 0.0f, uCorn, 1.0f - uCorn, 1.0f };
+        // For standard OpenGL loaded images (V=0 at bottom, V=1 at top):
+        float va[4] = { 0.0f, vCorn, 1.0f - vCorn, 1.0f };
+
+        for (int row = 0; row < 3; ++row)
+        {
+            for (int col = 0; col < 3; ++col)
+            {
+                AddTexturedQuad(
+                    xa[col], ya[row], xa[col + 1], ya[row + 1],
+                    ua[col], va[row], ua[col + 1], va[row + 1],
+                    tint,
+                    vertexBuffer);
+            }
+        }
+    }
+
+    void GameOverUI::DrawKenneyString(
+        const std::string& text,
+        float startX, float startY,
+        float scale,
+        const Aion::Vector4& color,
+        std::vector<float>& vertexBuffer,
+        int screenW, int screenH,
+        float letterSpacing)
+    {
+        float pixelW = 2.0f / static_cast<float>(screenW);
+        float pixelH = 2.0f / static_cast<float>(screenH);
+
+        float curX = startX;
+        for (char c : text)
+        {
+            const GlyphMetric* g = GetKenneyGlyph(c);
+            if (!g) continue;
+
+            if (c == ' ')
+            {
+                curX += (g->xAdvance * scale) * pixelW + letterSpacing;
+                continue;
+            }
+
+            float gw = g->width * scale * pixelW;
+            float gh = g->height * scale * pixelH;
+
+            float gx0 = curX + (g->xOffset * scale) * pixelW;
+            float gy1 = startY - ((g->yOffset - 12) * scale) * pixelH;
+            float gy0 = gy1 - gh;
+
+            float u0 = static_cast<float>(g->x) / static_cast<float>(KENNEY_FONT_ATLAS_WIDTH);
+            float u1 = static_cast<float>(g->x + g->width) / static_cast<float>(KENNEY_FONT_ATLAS_WIDTH);
+
+            // In our generated font atlas, image Y=0 is top, Y=512 is bottom.
+            // In OpenGL texture coordinates, V=1.0 is top, V=0.0 is bottom.
+            float v1 = 1.0f - (static_cast<float>(g->y) / static_cast<float>(KENNEY_FONT_ATLAS_HEIGHT));
+            float v0 = 1.0f - (static_cast<float>(g->y + g->height) / static_cast<float>(KENNEY_FONT_ATLAS_HEIGHT));
+
+            AddTexturedQuad(gx0, gy0, gx0 + gw, gy1, u0, v0, u1, v1, color, vertexBuffer);
+            curX += (g->xAdvance * scale) * pixelW + letterSpacing;
+        }
+    }
+
+    float GameOverUI::MeasureKenneyString(
+        const std::string& text,
+        float scale,
+        int screenW,
+        float letterSpacing) const
+    {
+        float pixelW = 2.0f / static_cast<float>(screenW);
+        float totalWidth = 0.0f;
+        for (char c : text)
+        {
+            const GlyphMetric* g = GetKenneyGlyph(c);
+            if (g)
+            {
+                totalWidth += (g->xAdvance * scale) * pixelW + letterSpacing;
+            }
+        }
+        return totalWidth;
+    }
+
+    void GameOverUI::FlushBatch(const std::shared_ptr<Aion::Texture>& texture, const std::vector<float>& vertexBuffer)
+    {
+        if (vertexBuffer.empty() || !m_shader || !m_vertexArray)
+        {
+            return;
+        }
+
+        m_shader->Use();
+
+        if (texture)
+        {
+            texture->Bind(0);
+            m_shader->SetInt("uTexture", 0);
+            m_shader->SetInt("uUseTexture", 1);
+        }
+        else
+        {
+            m_shader->SetInt("uUseTexture", 0);
+        }
+
+        m_vertexArray->SetDynamicVertexBuffer(vertexBuffer.data(), static_cast<uint32_t>(vertexBuffer.size() * sizeof(float)));
+        m_vertexArray->DrawArrays(static_cast<uint32_t>(vertexBuffer.size() / 8), Aion::PrimitiveType::Triangles);
     }
 
     bool GameOverUI::IsMouseOverButton(float mouseX, float mouseY, int screenWidth, int screenHeight) const
@@ -327,23 +358,27 @@ void main()
         return (ndcX >= m_btnMinX && ndcX <= m_btnMaxX && ndcY >= m_btnMinY && ndcY <= m_btnMaxY);
     }
 
-    bool GameOverUI::CheckRetryAction(int screenWidth, int screenHeight) const
+    bool GameOverUI::CheckRetryAction(int screenWidth, int screenHeight)
     {
+        m_buttonPressed = false;
+
         // 1. Keyboard trigger: R, Space, or Enter
         if (Aion::Input::GetKey(Aion::Key::R) ||
             Aion::Input::GetKey(Aion::Key::Space) ||
             Aion::Input::GetKey(Aion::Key::Enter))
         {
+            m_buttonPressed = true;
             return true;
         }
 
-        // 2. Mouse click on Retry button or card
+        // 2. Mouse click on Retry button
         if (Aion::Input::GetMouseButton(Aion::Mouse::ButtonLeft))
         {
             float mx = Aion::Input::GetMouseX();
             float my = Aion::Input::GetMouseY();
             if (IsMouseOverButton(mx, my, screenWidth, screenHeight))
             {
+                m_buttonPressed = true;
                 return true;
             }
         }
@@ -351,84 +386,11 @@ void main()
         return false;
     }
 
-    void GameOverUI::AddQuad(
-        float x0, float y0, float x1, float y1,
-        const Aion::Vector4& color,
-        std::vector<float>& vertexBuffer)
-    {
-        // 2 triangles = 6 vertices (x, y, r, g, b, a)
-        float r = color.x;
-        float g = color.y;
-        float b = color.z;
-        float a = color.w;
-
-        float quadVerts[36] = {
-            x0, y0, r, g, b, a,
-            x1, y0, r, g, b, a,
-            x1, y1, r, g, b, a,
-
-            x0, y0, r, g, b, a,
-            x1, y1, r, g, b, a,
-            x0, y1, r, g, b, a,
-        };
-
-        vertexBuffer.insert(vertexBuffer.end(), quadVerts, quadVerts + 36);
-    }
-
-    void GameOverUI::DrawGlyph(
-        char c,
-        float x, float y,
-        float pixelW, float pixelH,
-        const Aion::Vector4& color,
-        std::vector<float>& vertexBuffer)
-    {
-        for (int row = 0; row < 7; ++row)
-        {
-            uint8_t rowBits = GetGlyphRow(c, row);
-            float py0 = y - static_cast<float>(row + 1) * pixelH;
-            float py1 = y - static_cast<float>(row) * pixelH;
-
-            for (int col = 0; col < 5; ++col)
-            {
-                if (rowBits & (1 << (4 - col)))
-                {
-                    float px0 = x + static_cast<float>(col) * pixelW;
-                    float px1 = px0 + pixelW;
-                    AddQuad(px0, py0, px1, py1, color, vertexBuffer);
-                }
-            }
-        }
-    }
-
-    void GameOverUI::DrawString(
-        const std::string& text,
-        float startX, float startY,
-        float pixelW, float pixelH,
-        float letterSpacing,
-        const Aion::Vector4& color,
-        std::vector<float>& vertexBuffer)
-    {
-        float curX = startX;
-        for (char c : text)
-        {
-            if (c == ' ')
-            {
-                curX += (5.0f * pixelW) + letterSpacing;
-                continue;
-            }
-
-            DrawGlyph(c, curX, startY, pixelW, pixelH, color, vertexBuffer);
-            curX += (5.0f * pixelW) + letterSpacing;
-        }
-    }
-
-    void GameOverUI::RenderHUD(
+    void GameOverUI::RenderLoading(
         int screenWidth,
         int screenHeight,
-        float currentDistance,
-        int difficultyStage,
-        const char* stageName,
-        float bestDistance)
+        float progress,
+        const std::string& statusText)
     {
         if (screenWidth <= 0 || screenHeight <= 0)
         {
@@ -437,101 +399,246 @@ void main()
 
         EnsureInitialized();
 
-        // Backup relevant OpenGL state
-        GLboolean blendEnabled = glIsEnabled(GL_BLEND);
-        GLboolean depthTestEnabled = glIsEnabled(GL_DEPTH_TEST);
-        GLboolean cullFaceEnabled = glIsEnabled(GL_CULL_FACE);
-        GLint prevBlendSrc = GL_ONE, prevBlendDst = GL_ZERO;
-        glGetIntegerv(GL_BLEND_SRC_ALPHA, &prevBlendSrc);
-        glGetIntegerv(GL_BLEND_DST_ALPHA, &prevBlendDst);
+        Aion::RenderState prevState = Aion::RenderCommand::GetCurrentState();
+        Aion::RenderState uiState = prevState;
+        uiState.DepthTest = false;
+        uiState.CullingMode = Aion::CullMode::None;
+        uiState.BlendEnable = true;
+        uiState.SrcBlend = Aion::BlendFactor::SrcAlpha;
+        uiState.DstBlend = Aion::BlendFactor::OneMinusSrcAlpha;
+        Aion::RenderCommand::ApplyState(uiState);
 
-        glEnable(GL_BLEND);
-        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-        glDisable(GL_DEPTH_TEST);
-        glDisable(GL_CULL_FACE);
+        float pixelW = 2.0f / static_cast<float>(screenWidth);
+        float pixelH = 2.0f / static_cast<float>(screenHeight);
 
-        std::vector<float> verts;
-        verts.reserve(1024);
+        // Fullscreen dimming overlay
+        std::vector<float> dimVerts;
+        AddColoredQuad(-1.0f, -1.0f, 1.0f, 1.0f,
+                       Aion::Vector4(0.04f, 0.06f, 0.10f, 0.75f), dimVerts);
+        FlushBatch(nullptr, dimVerts);
 
-        float aspect = static_cast<float>(screenWidth) / static_cast<float>(screenHeight);
-        float basePixelH = 2.0f / static_cast<float>(screenHeight);
-        float basePixelW = basePixelH / aspect;
+        // Central card panel (520px x 190px)
+        float cardHalfW = 260.0f * pixelW;
+        float cardHalfH = 95.0f * pixelH;
+        float cardX0 = -cardHalfW;
+        float cardX1 =  cardHalfW;
+        float cardY0 = -cardHalfH;
+        float cardY1 =  cardHalfH;
 
-        // Compact HUD panel in top-left
-        float hudX0 = -0.96f;
-        float hudX1 = -0.42f;
-        float hudY0 = 0.77f;
-        float hudY1 = 0.95f;
+        // Card drop shadow
+        std::vector<float> shadowVerts;
+        AddColoredQuad(cardX0 + 8.0f * pixelW, cardY0 - 8.0f * pixelH,
+                       cardX1 + 8.0f * pixelW, cardY1 - 8.0f * pixelH,
+                       Aion::Vector4(0.02f, 0.03f, 0.05f, 0.50f), shadowVerts);
+        FlushBatch(nullptr, shadowVerts);
 
-        // Shadow behind HUD panel
-        AddQuad(hudX0 + 0.01f, hudY0 - 0.015f, hudX1 + 0.01f, hudY1 - 0.015f,
-                Aion::Vector4(0.02f, 0.03f, 0.04f, 0.40f), verts);
+        // Card body: 9-slice Kenney Card Panel
+        std::vector<float> cardVerts;
+        Add9Slice(cardX0, cardY0, cardX1, cardY1, 24.0f, 576.0f, 384.0f,
+                  Aion::Vector4(0.14f, 0.18f, 0.24f, 0.98f), cardVerts,
+                  screenWidth, screenHeight);
+        FlushBatch(m_texCardPanel ? m_texCardPanel : m_texWhiteFallback, cardVerts);
 
-        // Panel bevel edges
-        float borderW = 0.006f;
-        AddQuad(hudX0, hudY1 - borderW, hudX1, hudY1, Aion::Vector4(0.32f, 0.68f, 0.55f, 0.90f), verts);
-        AddQuad(hudX0, hudY0, hudX0 + borderW, hudY1, Aion::Vector4(0.32f, 0.68f, 0.55f, 0.70f), verts);
-        AddQuad(hudX0, hudY0, hudX1, hudY0 + borderW, Aion::Vector4(0.03f, 0.04f, 0.06f, 0.90f), verts);
-        AddQuad(hudX1 - borderW, hudY0, hudX1, hudY1, Aion::Vector4(0.03f, 0.04f, 0.06f, 0.90f), verts);
+        // Loading Header text: statusText or "LOADING..."
+        std::vector<float> fontVerts;
+        std::string text = statusText.empty() ? "LOADING..." : statusText;
+        float textScale = 0.58f;
+        float textW = MeasureKenneyString(text, textScale, screenWidth, 2.0f * pixelW);
+        float textX = -textW * 0.5f;
+        float textY = cardY1 - 44.0f * pixelH;
 
-        // Panel body
-        AddQuad(hudX0 + borderW, hudY0 + borderW, hudX1 - borderW, hudY1 - borderW,
-                Aion::Vector4(0.08f, 0.12f, 0.16f, 0.82f), verts);
+        // Drop shadow behind text
+        DrawKenneyString(text, textX + 2.0f * pixelW, textY - 2.0f * pixelH,
+                         textScale, Aion::Vector4(0.02f, 0.03f, 0.05f, 0.90f),
+                         fontVerts, screenWidth, screenHeight, 2.0f * pixelW);
+        // Gold/coral header text
+        DrawKenneyString(text, textX, textY,
+                         textScale, Aion::Vector4(1.0f, 0.88f, 0.25f, 1.0f),
+                         fontVerts, screenWidth, screenHeight, 2.0f * pixelW);
 
-        // Format strings
+        // Progress bar track
+        float barW = (cardHalfW * 2.0f) - 64.0f * pixelW;
+        float barH = 22.0f * pixelH;
+        float barX0 = -barW * 0.5f;
+        float barX1 =  barW * 0.5f;
+        float barY0 = cardY0 + 38.0f * pixelH;
+        float barY1 = barY0 + barH;
+
+        // Track background
+        std::vector<float> trackVerts;
+        AddColoredQuad(barX0, barY0, barX1, barY1,
+                       Aion::Vector4(0.06f, 0.08f, 0.12f, 1.0f), trackVerts);
+        FlushBatch(nullptr, trackVerts);
+
+        // Progress bar fill (Kenney green / gold)
+        float clampedProgress = std::clamp(progress, 0.0f, 1.0f);
+        if (clampedProgress > 0.001f)
+        {
+            float fillX1 = barX0 + barW * clampedProgress;
+            std::vector<float> fillVerts;
+            if (m_texStageIndicator)
+            {
+                AddTexturedQuad(barX0, barY0, fillX1, barY1,
+                                0.0f, 0.0f, clampedProgress, 1.0f,
+                                Aion::Vector4(0.35f, 0.90f, 0.65f, 1.0f), fillVerts);
+                FlushBatch(m_texStageIndicator, fillVerts);
+            }
+            else
+            {
+                AddColoredQuad(barX0, barY0, fillX1, barY1,
+                               Aion::Vector4(0.35f, 0.90f, 0.65f, 1.0f), fillVerts);
+                FlushBatch(nullptr, fillVerts);
+            }
+        }
+
+        FlushBatch(m_texFontAtlas, fontVerts);
+
+        Aion::RenderCommand::ApplyState(prevState);
+    }
+
+    void GameOverUI::RenderHUD(
+        int screenWidth,
+        int screenHeight,
+        float currentDistance,
+        int difficultyStage,
+        const char* stageName,
+        float bestDistance,
+        float stageMilestoneTimer)
+    {
+        if (screenWidth <= 0 || screenHeight <= 0)
+        {
+            return;
+        }
+
+        EnsureInitialized();
+
+        Aion::RenderState prevState = Aion::RenderCommand::GetCurrentState();
+        Aion::RenderState uiState = prevState;
+        uiState.DepthTest = false;
+        uiState.CullingMode = Aion::CullMode::None;
+        uiState.BlendEnable = true;
+        uiState.SrcBlend = Aion::BlendFactor::SrcAlpha;
+        uiState.DstBlend = Aion::BlendFactor::OneMinusSrcAlpha;
+        Aion::RenderCommand::ApplyState(uiState);
+
+        float pixelW = 2.0f / static_cast<float>(screenWidth);
+        float pixelH = 2.0f / static_cast<float>(screenHeight);
+
+        // Responsive top-left anchoring for isometric gameplay camera
+        float panelW = 460.0f * pixelW;
+        float panelH = 125.0f * pixelH;
+        float hudX0 = -1.0f + 25.0f * pixelW;
+        float hudX1 = hudX0 + panelW;
+        float hudY1 = 1.0f - 20.0f * pixelH;
+        float hudY0 = hudY1 - panelH;
+
+        // 1. Drop shadow behind HUD panel
+        std::vector<float> shadowVerts;
+        AddColoredQuad(hudX0 + 6.0f * pixelW, hudY0 - 6.0f * pixelH,
+                       hudX1 + 6.0f * pixelW, hudY1 - 6.0f * pixelH,
+                       Aion::Vector4(0.02f, 0.03f, 0.05f, 0.45f), shadowVerts);
+        FlushBatch(nullptr, shadowVerts);
+
+        // 2. 9-Slice Kenney Grey panel with subtle slate tint
+        std::vector<float> panelVerts;
+        Aion::Vector4 panelTint(0.20f, 0.26f, 0.32f, 0.90f);
+        if (stageMilestoneTimer > 0.0f)
+        {
+            float pulse = std::sin(stageMilestoneTimer * 12.0f) * 0.5f + 0.5f;
+            panelTint = Aion::Vector4(0.20f + pulse * 0.15f, 0.30f + pulse * 0.15f, 0.35f, 0.92f);
+        }
+        Add9Slice(hudX0, hudY0, hudX1, hudY1, 24.0f, 384.0f, 128.0f, panelTint, panelVerts, screenWidth, screenHeight);
+        FlushBatch(m_texHudPanel, panelVerts);
+
+        // 3. Format telemetry strings
         int intDist = static_cast<int>(std::floor(std::max(0.0f, currentDistance)));
         int intBest = static_cast<int>(std::floor(std::max(0.0f, bestDistance)));
 
         std::string distStr = "DIST: " + std::to_string(intDist) + "M";
-        if (intBest > 0)
+        std::string bestStr = (intBest > 0) ? ("  BEST: " + std::to_string(intBest) + "M") : "";
+
+        std::string stageLabel = "STAGE " + std::to_string(difficultyStage) +
+                                 " [" + std::string(stageName ? stageName : "EASY") + "]";
+
+        // 4. Render typography with Kenney Future font
+        std::vector<float> textVerts;
+        float fontScale = 0.46f;
+        float textStartX = hudX0 + 24.0f * pixelW;
+        float line1Y = hudY1 - 38.0f * pixelH;
+        float line2Y = hudY1 - 85.0f * pixelH;
+
+        // Line 1: Distance & Best record
+        // Dark drop shadow behind text for crisp contrast
+        DrawKenneyString(distStr + bestStr, textStartX + 2.0f * pixelW, line1Y - 2.0f * pixelH,
+                         fontScale, Aion::Vector4(0.03f, 0.04f, 0.06f, 0.85f), textVerts,
+                         screenWidth, screenHeight);
+
+        // Distance text: Pure white
+        DrawKenneyString(distStr, textStartX, line1Y,
+                         fontScale, Aion::Vector4(1.0f, 1.0f, 1.0f, 1.0f), textVerts,
+                         screenWidth, screenHeight);
+
+        if (!bestStr.empty())
         {
-            distStr += "   BEST: " + std::to_string(intBest) + "M";
+            float distW = MeasureKenneyString(distStr, fontScale, screenWidth);
+            DrawKenneyString(bestStr, textStartX + distW, line1Y,
+                             fontScale, Aion::Vector4(0.95f, 0.85f, 0.35f, 1.0f), textVerts,
+                             screenWidth, screenHeight);
         }
 
-        std::string stageStr = "STAGE " + std::to_string(difficultyStage) +
-                               " [" + std::string(stageName ? stageName : "EASY") + "]";
+        // Line 2: Difficulty stage with Kenney green/emerald styling
+        DrawKenneyString(stageLabel, textStartX + 2.0f * pixelW, line2Y - 2.0f * pixelH,
+                         fontScale * 0.90f, Aion::Vector4(0.03f, 0.04f, 0.06f, 0.85f), textVerts,
+                         screenWidth, screenHeight);
 
-        float hudPixelW = basePixelW * 2.1f;
-        float hudPixelH = basePixelH * 2.1f;
-        float hudSpacing = hudPixelW * 1.15f;
+        Aion::Vector4 stageColor(0.35f, 0.90f, 0.65f, 1.0f);
+        if (stageMilestoneTimer > 0.0f)
+        {
+            stageColor = Aion::Vector4(1.0f, 0.90f, 0.30f, 1.0f); // Golden pulse during milestone
+        }
+        DrawKenneyString(stageLabel, textStartX, line2Y,
+                         fontScale * 0.90f, stageColor, textVerts,
+                         screenWidth, screenHeight);
 
-        float textStartX = hudX0 + 0.025f;
-        float textLine1Y = 0.91f;
-        float textLine2Y = 0.83f;
+        float stageW = MeasureKenneyString(stageLabel, fontScale * 0.90f, screenWidth);
 
-        // Line 1: Distance & Best
-        DrawString(distStr, textStartX + 0.002f, textLine1Y - 0.002f,
-                   hudPixelW, hudPixelH, hudSpacing,
-                   Aion::Vector4(0.02f, 0.03f, 0.05f, 0.85f), verts);
-        DrawString(distStr, textStartX, textLine1Y,
-                   hudPixelW, hudPixelH, hudSpacing,
-                   Aion::Vector4(1.0f, 1.0f, 1.0f, 1.0f), verts);
+        // 5. Render difficulty stage pips using Kenney slide section graphic
+        std::vector<float> indicatorVerts;
+        float pipSize = 13.0f;
+        float pipW = pipSize * pixelW;
+        float pipH = pipSize * pixelH;
+        float pipStartX = textStartX + stageW + 10.0f * pixelW;
+        float pipCenterY = line2Y - 12.0f * pixelH;
 
-        // Line 2: Difficulty Stage
-        DrawString(stageStr, textStartX + 0.002f, textLine2Y - 0.002f,
-                   hudPixelW, hudPixelH, hudSpacing,
-                   Aion::Vector4(0.02f, 0.03f, 0.05f, 0.85f), verts);
-        DrawString(stageStr, textStartX, textLine2Y,
-                   hudPixelW, hudPixelH, hudSpacing,
-                   Aion::Vector4(0.35f, 0.85f, 0.65f, 1.0f), verts);
+        for (int i = 0; i < 5; ++i)
+        {
+            float px0 = pipStartX + i * (pipSize + 4.0f) * pixelW;
+            float px1 = px0 + pipW;
+            float py0 = pipCenterY - pipH * 0.5f;
+            float py1 = pipCenterY + pipH * 0.5f;
 
-        // Submit batch
-        glBindVertexArray(m_vao);
-        glBindBuffer(GL_ARRAY_BUFFER, m_vbo);
-        glBufferData(GL_ARRAY_BUFFER, static_cast<GLsizeiptr>(verts.size() * sizeof(float)), verts.data(), GL_DYNAMIC_DRAW);
+            bool isActive = (i < difficultyStage);
+            Aion::Vector4 pipTint = isActive ? (stageMilestoneTimer > 0.0f
+                                                ? Aion::Vector4(1.0f, 0.90f, 0.30f, 1.0f)
+                                                : Aion::Vector4(0.35f, 0.90f, 0.65f, 1.0f))
+                                             : Aion::Vector4(0.30f, 0.35f, 0.40f, 0.40f);
 
-        glUseProgram(m_shaderProgram);
-        glDrawArrays(GL_TRIANGLES, 0, static_cast<GLsizei>(verts.size() / 6));
+            AddTexturedQuad(px0, py0, px1, py1, 0.0f, 0.0f, 1.0f, 1.0f, pipTint, indicatorVerts);
+        }
+        FlushBatch(m_texStageIndicator, indicatorVerts);
 
-        glBindVertexArray(0);
-        glBindBuffer(GL_ARRAY_BUFFER, 0);
-        glUseProgram(0);
+        if (stageMilestoneTimer > 0.0f)
+        {
+            std::string upStr = " [STAGE UP!]";
+            float upStartX = pipStartX + 5 * (pipSize + 4.0f) * pixelW + 6.0f * pixelW;
+            DrawKenneyString(upStr, upStartX, line2Y,
+                             fontScale * 0.85f, Aion::Vector4(1.0f, 0.80f, 0.20f, 1.0f), textVerts,
+                             screenWidth, screenHeight);
+        }
 
-        // Restore OpenGL state
-        if (!blendEnabled) glDisable(GL_BLEND);
-        glBlendFunc(prevBlendSrc, prevBlendDst);
-        if (depthTestEnabled) glEnable(GL_DEPTH_TEST);
-        if (cullFaceEnabled) glEnable(GL_CULL_FACE);
+        FlushBatch(m_texFontAtlas, textVerts);
+
+        Aion::RenderCommand::ApplyState(prevState);
     }
 
     void GameOverUI::RenderGameOver(
@@ -541,7 +648,8 @@ void main()
         float bestDistance,
         bool isNewRecord,
         int completedSegments,
-        const char* difficultyStage)
+        const char* difficultyStage,
+        float gameOverDuration)
     {
         if (screenWidth <= 0 || screenHeight <= 0)
         {
@@ -550,211 +658,264 @@ void main()
 
         EnsureInitialized();
 
-        // Backup relevant OpenGL state
-        GLboolean blendEnabled = glIsEnabled(GL_BLEND);
-        GLboolean depthTestEnabled = glIsEnabled(GL_DEPTH_TEST);
-        GLboolean cullFaceEnabled = glIsEnabled(GL_CULL_FACE);
-        GLint prevBlendSrc = GL_ONE, prevBlendDst = GL_ZERO;
-        glGetIntegerv(GL_BLEND_SRC_ALPHA, &prevBlendSrc);
-        glGetIntegerv(GL_BLEND_DST_ALPHA, &prevBlendDst);
+        // Smooth alpha fade-in transition (fully visible if duration <= 0, with minimum floor to prevent invisible UI)
+        float alpha = (gameOverDuration <= 0.0f) ? 1.0f : std::min(1.0f, std::max(0.4f, gameOverDuration * 4.0f));
 
-        glEnable(GL_BLEND);
-        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-        glDisable(GL_DEPTH_TEST);
-        glDisable(GL_CULL_FACE);
+        Aion::RenderState prevState = Aion::RenderCommand::GetCurrentState();
+        Aion::RenderState uiState = prevState;
+        uiState.DepthTest = false;
+        uiState.CullingMode = Aion::CullMode::None;
+        uiState.BlendEnable = true;
+        uiState.SrcBlend = Aion::BlendFactor::SrcAlpha;
+        uiState.DstBlend = Aion::BlendFactor::OneMinusSrcAlpha;
+        Aion::RenderCommand::ApplyState(uiState);
 
-        std::vector<float> verts;
-        verts.reserve(2048);
-
-        // Aspect ratio compensation for pixel width/height in NDC
-        float aspect = static_cast<float>(screenWidth) / static_cast<float>(screenHeight);
-        float basePixelH = 2.0f / static_cast<float>(screenHeight);
-        float basePixelW = basePixelH / aspect;
+        float pixelW = 2.0f / static_cast<float>(screenWidth);
+        float pixelH = 2.0f / static_cast<float>(screenHeight);
 
         // 1. Fullscreen Dimming Overlay
-        AddQuad(-1.0f, -1.0f, 1.0f, 1.0f, Aion::Vector4(0.06f, 0.08f, 0.12f, 0.72f), verts);
+        std::vector<float> dimVerts;
+        AddColoredQuad(-1.0f, -1.0f, 1.0f, 1.0f,
+                       Aion::Vector4(0.04f, 0.06f, 0.10f, 0.72f * alpha), dimVerts);
+        FlushBatch(nullptr, dimVerts);
 
-        // 2. Central Card Dialog Box
-        float cardX0 = -0.48f;
-        float cardX1 =  0.48f;
-        float cardY0 = -0.46f;
-        float cardY1 =  0.46f;
+        // 2. Central Card Dialog Box (620px x 460px)
+        float cardHalfW = 310.0f * pixelW;
+        float cardHalfH = 230.0f * pixelH;
+        float cardCenterY = 0.02f;
+        float cardX0 = -cardHalfW;
+        float cardX1 =  cardHalfW;
+        float cardY0 = cardCenterY - cardHalfH;
+        float cardY1 = cardCenterY + cardHalfH;
 
-        // Drop shadow under card
-        AddQuad(cardX0 + 0.02f, cardY0 - 0.025f, cardX1 + 0.02f, cardY1 - 0.025f, Aion::Vector4(0.02f, 0.03f, 0.04f, 0.50f), verts);
+        // Card drop shadow
+        std::vector<float> cardShadowVerts;
+        AddColoredQuad(cardX0 + 12.0f * pixelW, cardY0 - 12.0f * pixelH,
+                       cardX1 + 12.0f * pixelW, cardY1 - 12.0f * pixelH,
+                       Aion::Vector4(0.02f, 0.03f, 0.05f, 0.55f * alpha), cardShadowVerts);
+        FlushBatch(nullptr, cardShadowVerts);
 
-        // Card bevel edges (Isometric block 3D look)
-        float borderW = 0.012f;
-        // Top edge highlight
-        AddQuad(cardX0, cardY1 - borderW, cardX1, cardY1, Aion::Vector4(0.88f, 0.48f, 0.35f, 1.0f), verts);
-        // Left edge highlight
-        AddQuad(cardX0, cardY0, cardX0 + borderW, cardY1, Aion::Vector4(0.88f, 0.48f, 0.35f, 1.0f), verts);
-        // Bottom edge shadow
-        AddQuad(cardX0, cardY0, cardX1, cardY0 + borderW, Aion::Vector4(0.03f, 0.04f, 0.06f, 1.0f), verts);
-        // Right edge shadow
-        AddQuad(cardX1 - borderW, cardY0, cardX1, cardY1, Aion::Vector4(0.03f, 0.04f, 0.06f, 1.0f), verts);
+        // Card body: 9-slice Kenney Card Panel (Deep slate navy with crisp rounded bevel)
+        std::vector<float> cardVerts;
+        Add9Slice(cardX0, cardY0, cardX1, cardY1, 28.0f, 576.0f, 384.0f,
+                  Aion::Vector4(0.14f, 0.18f, 0.24f, 0.98f * alpha), cardVerts,
+                  screenWidth, screenHeight);
+        FlushBatch(m_texCardPanel ? m_texCardPanel : m_texWhiteFallback, cardVerts);
 
-        // Card body (Deep slate teal)
-        AddQuad(cardX0 + borderW, cardY0 + borderW, cardX1 - borderW, cardY1 - borderW,
-                Aion::Vector4(0.12f, 0.16f, 0.22f, 0.96f), verts);
+        // 3. Header Accent Divider
+        std::vector<float> divVerts;
+        float divY = cardY1 - 85.0f * pixelH;
+        AddTexturedQuad(cardX0 + 30.0f * pixelW, divY - 4.0f * pixelH,
+                        cardX1 - 30.0f * pixelW, divY + 4.0f * pixelH,
+                        0.0f, 0.0f, 1.0f, 1.0f,
+                        Aion::Vector4(0.95f, 0.75f, 0.25f, 0.85f * alpha), divVerts);
+        FlushBatch(m_texDivider, divVerts);
 
-        // 3. Header Accent Bar
-        AddQuad(cardX0 + borderW + 0.01f, 0.38f, cardX1 - borderW - 0.01f, 0.39f,
-                Aion::Vector4(0.95f, 0.80f, 0.20f, 0.85f), verts);
-
-        // 4. "GAME OVER" Title Banner
-        float titlePixelW = basePixelW * 5.0f;
-        float titlePixelH = basePixelH * 5.0f;
-        float titleSpacing = titlePixelW * 1.5f;
+        // 4. "GAME OVER" Title in Kenney Future bold typography
+        std::vector<float> fontVerts;
         std::string titleText = "GAME OVER";
-        float totalTitleWidth = (9.0f * 5.0f * titlePixelW) + (8.0f * titleSpacing);
-        float titleStartX = -totalTitleWidth * 0.5f;
-        float titleStartY = 0.33f;
+        float titleScale = 0.95f;
+        float titleW = MeasureKenneyString(titleText, titleScale, screenWidth, 3.0f * pixelW);
+        float titleX = -titleW * 0.5f;
+        float titleY = cardY1 - 40.0f * pixelH;
 
-        // Shadow behind title
-        DrawString(titleText, titleStartX + 0.006f, titleStartY - 0.006f,
-                   titlePixelW, titlePixelH, titleSpacing,
-                   Aion::Vector4(0.04f, 0.05f, 0.08f, 0.90f), verts);
+        // Drop shadow behind title
+        DrawKenneyString(titleText, titleX + 4.0f * pixelW, titleY - 4.0f * pixelH,
+                         titleScale, Aion::Vector4(0.04f, 0.05f, 0.08f, 0.90f * alpha),
+                         fontVerts, screenWidth, screenHeight, 3.0f * pixelW);
 
-        // Vibrant Coral Title
-        DrawString(titleText, titleStartX, titleStartY,
-                   titlePixelW, titlePixelH, titleSpacing,
-                   Aion::Vector4(1.0f, 0.48f, 0.20f, 1.0f), verts);
+        // Warm Coral/Gold Title
+        DrawKenneyString(titleText, titleX, titleY,
+                         titleScale, Aion::Vector4(1.0f, 0.48f, 0.22f, 1.0f * alpha),
+                         fontVerts, screenWidth, screenHeight, 3.0f * pixelW);
 
-        // 5. New Record Feedback / Accent
-        float recPixelW = basePixelW * 2.7f;
-        float recPixelH = basePixelH * 2.7f;
-        float recSpacing = recPixelW * 1.25f;
+        // 5. New Record Notice with Kenney Gold Stars
+        float starScale = 36.0f;
+        float contentStartY = cardY1 - 120.0f * pixelH;
+
         if (isNewRecord)
         {
             std::string recText = "*** NEW RECORD! ***";
-            float recWidth = (static_cast<float>(recText.length()) * 5.0f * recPixelW) +
-                             (static_cast<float>(recText.length() - 1) * recSpacing);
-            float recStartX = -recWidth * 0.5f;
-            float recStartY = 0.21f;
+            float recScale = 0.55f;
+            float recW = MeasureKenneyString(recText, recScale, screenWidth, 2.0f * pixelW);
+            float recX = -recW * 0.5f;
+            float recY = contentStartY;
 
-            // Golden glowing badge banner
-            AddQuad(-recWidth * 0.5f - 0.03f, recStartY - 0.02f,
-                     recWidth * 0.5f + 0.03f, recStartY + 7.0f * recPixelH + 0.01f,
-                    Aion::Vector4(0.35f, 0.25f, 0.05f, 0.70f), verts);
+            // Golden stars on left and right
+            std::vector<float> starVerts;
+            float starHalfW = (starScale * 0.5f) * pixelW;
+            float starHalfH = (starScale * 0.5f) * pixelH;
+            float starCenterY = recY - 8.0f * pixelH;
 
-            DrawString(recText, recStartX + 0.003f, recStartY - 0.003f,
-                       recPixelW, recPixelH, recSpacing,
-                       Aion::Vector4(0.08f, 0.05f, 0.02f, 0.90f), verts);
-            DrawString(recText, recStartX, recStartY,
-                       recPixelW, recPixelH, recSpacing,
-                       Aion::Vector4(1.0f, 0.88f, 0.20f, 1.0f), verts);
+            // Left star
+            AddTexturedQuad(recX - 45.0f * pixelW - starHalfW, starCenterY - starHalfH,
+                            recX - 45.0f * pixelW + starHalfW, starCenterY + starHalfH,
+                            0.0f, 0.0f, 1.0f, 1.0f,
+                            Aion::Vector4(1.0f, 0.88f, 0.20f, 1.0f * alpha), starVerts);
+            // Right star
+            AddTexturedQuad(recX + recW + 45.0f * pixelW - starHalfW, starCenterY - starHalfH,
+                            recX + recW + 45.0f * pixelW + starHalfW, starCenterY + starHalfH,
+                            0.0f, 0.0f, 1.0f, 1.0f,
+                            Aion::Vector4(1.0f, 0.88f, 0.20f, 1.0f * alpha), starVerts);
+            FlushBatch(m_texStarGold, starVerts);
+
+            // New record text
+            DrawKenneyString(recText, recX + 2.0f * pixelW, recY - 2.0f * pixelH,
+                             recScale, Aion::Vector4(0.08f, 0.05f, 0.02f, 0.90f * alpha),
+                             fontVerts, screenWidth, screenHeight, 2.0f * pixelW);
+            DrawKenneyString(recText, recX, recY,
+                             recScale, Aion::Vector4(1.0f, 0.88f, 0.20f, 1.0f * alpha),
+                             fontVerts, screenWidth, screenHeight, 2.0f * pixelW);
+
+            contentStartY -= 42.0f * pixelH;
         }
 
-        // 6. Run Progression Stats Summary: Distance & Best Distance
+        // 6. Run Statistics (Distance, Best Record, Cleared Segments, Difficulty Tier)
         int intDist = static_cast<int>(std::floor(std::max(0.0f, finalDistance)));
         int intBest = static_cast<int>(std::floor(std::max(0.0f, bestDistance)));
 
-        float subPixelW = basePixelW * 2.5f;
-        float subPixelH = basePixelH * 2.5f;
-        float subSpacing = subPixelW * 1.2f;
-
+        float statScale = 0.50f;
         std::string distLine = "DISTANCE: " + std::to_string(intDist) + "M   BEST: " + std::to_string(intBest) + "M";
-        float distWidth = (static_cast<float>(distLine.length()) * 5.0f * subPixelW) +
-                          (static_cast<float>(distLine.length() - 1) * subSpacing);
-        float distStartX = -distWidth * 0.5f;
-        float distStartY = isNewRecord ? 0.11f : 0.17f;
+        float distW = MeasureKenneyString(distLine, statScale, screenWidth, 1.5f * pixelW);
+        float distStartX = -distW * 0.5f;
+        float distStartY = contentStartY;
 
-        DrawString(distLine, distStartX + 0.003f, distStartY - 0.003f,
-                   subPixelW, subPixelH, subSpacing,
-                   Aion::Vector4(0.03f, 0.04f, 0.06f, 0.80f), verts);
-        DrawString(distLine, distStartX, distStartY,
-                   subPixelW, subPixelH, subSpacing,
-                   Aion::Vector4(1.0f, 1.0f, 1.0f, 1.0f), verts);
+        DrawKenneyString(distLine, distStartX + 2.0f * pixelW, distStartY - 2.0f * pixelH,
+                         statScale, Aion::Vector4(0.02f, 0.03f, 0.05f, 0.85f * alpha),
+                         fontVerts, screenWidth, screenHeight, 1.5f * pixelW);
+        DrawKenneyString(distLine, distStartX, distStartY,
+                         statScale, Aion::Vector4(1.0f, 1.0f, 1.0f, 1.0f * alpha),
+                         fontVerts, screenWidth, screenHeight, 1.5f * pixelW);
 
-        // Cleared Segments and Tier
-        std::string statsLine = "CLEARED: " + std::to_string(completedSegments) +
-                                " SEGMENTS | TIER: " + std::string(difficultyStage);
-        float statsWidth = (static_cast<float>(statsLine.length()) * 5.0f * subPixelW) +
-                           (static_cast<float>(statsLine.length() - 1) * subSpacing);
-        float statsStartX = -statsWidth * 0.5f;
-        float statsStartY = isNewRecord ? 0.02f : 0.06f;
+        std::string tierLine = "CLEARED: " + std::to_string(completedSegments) +
+                               " SEGMENTS | TIER: " + std::string(difficultyStage);
+        float tierW = MeasureKenneyString(tierLine, statScale * 0.90f, screenWidth, 1.5f * pixelW);
+        float tierStartX = -tierW * 0.5f;
+        float tierStartY = distStartY - 36.0f * pixelH;
 
-        DrawString(statsLine, statsStartX, statsStartY,
-                   subPixelW, subPixelH, subSpacing,
-                   Aion::Vector4(0.70f, 0.88f, 0.85f, 0.95f), verts);
+        DrawKenneyString(tierLine, tierStartX + 2.0f * pixelW, tierStartY - 2.0f * pixelH,
+                         statScale * 0.90f, Aion::Vector4(0.02f, 0.03f, 0.05f, 0.85f * alpha),
+                         fontVerts, screenWidth, screenHeight, 1.5f * pixelW);
+        DrawKenneyString(tierLine, tierStartX, tierStartY,
+                         statScale * 0.90f, Aion::Vector4(0.65f, 0.85f, 0.80f, 0.95f * alpha),
+                         fontVerts, screenWidth, screenHeight, 1.5f * pixelW);
 
-        // 7. Interactive Retry Button
+        // 7. Interactive Kenney Retry Button
+        float btnHalfW = 150.0f * pixelW;
+        float btnHalfH = 34.0f * pixelH;
+        float btnCenterY = cardY0 + 80.0f * pixelH;
+        m_btnMinX = -btnHalfW;
+        m_btnMaxX =  btnHalfW;
+        m_btnMinY = btnCenterY - btnHalfH;
+        m_btnMaxY = btnCenterY + btnHalfH;
+
         float mx = Aion::Input::GetMouseX();
         float my = Aion::Input::GetMouseY();
         bool hovered = IsMouseOverButton(mx, my, screenWidth, screenHeight);
+        bool pressed = m_buttonPressed || (hovered && Aion::Input::GetMouseButton(Aion::Mouse::ButtonLeft));
 
-        Aion::Vector4 btnColor = hovered ? Aion::Vector4(0.35f, 0.78f, 0.58f, 1.0f)
-                                         : Aion::Vector4(0.25f, 0.62f, 0.45f, 1.0f);
-        Aion::Vector4 btnTopLight = hovered ? Aion::Vector4(0.55f, 0.92f, 0.72f, 1.0f)
-                                            : Aion::Vector4(0.40f, 0.75f, 0.55f, 1.0f);
-        Aion::Vector4 btnBotShadow = hovered ? Aion::Vector4(0.20f, 0.52f, 0.38f, 1.0f)
-                                             : Aion::Vector4(0.12f, 0.38f, 0.28f, 1.0f);
+        if (m_buttonVisualStateOverride == 0) // Force Normal
+        {
+            hovered = false;
+            pressed = false;
+        }
+        else if (m_buttonVisualStateOverride == 1) // Force Hover
+        {
+            hovered = true;
+            pressed = false;
+        }
+        else if (m_buttonVisualStateOverride == 2) // Force Pressed
+        {
+            hovered = true;
+            pressed = true;
+        }
+
+        std::shared_ptr<Aion::Texture> activeBtnTex = m_texBtnNormal;
+        if (pressed)
+        {
+            activeBtnTex = m_texBtnPressed;
+        }
+        else if (hovered)
+        {
+            activeBtnTex = m_texBtnHover;
+        }
+
+        float pressYOffset = pressed ? (-3.0f * pixelH) : 0.0f;
+        Aion::Vector4 btnTint;
+        if (activeBtnTex)
+        {
+            btnTint = pressed ? Aion::Vector4(0.92f, 0.92f, 0.92f, 1.0f * alpha)
+                    : (hovered ? Aion::Vector4(1.08f, 1.08f, 1.08f, 1.0f * alpha)
+                               : Aion::Vector4(1.0f, 1.0f, 1.0f, 1.0f * alpha));
+        }
+        else
+        {
+            btnTint = pressed ? Aion::Vector4(0.016f, 0.427f, 0.255f, 1.0f * alpha)
+                    : (hovered ? Aion::Vector4(0.184f, 0.843f, 0.573f, 1.0f * alpha)
+                               : Aion::Vector4(0.086f, 0.733f, 0.467f, 1.0f * alpha));
+        }
 
         // Button shadow
-        AddQuad(m_btnMinX + 0.01f, m_btnMinY - 0.015f, m_btnMaxX + 0.01f, m_btnMaxY - 0.015f,
-                Aion::Vector4(0.04f, 0.06f, 0.08f, 0.40f), verts);
+        std::vector<float> btnShadowVerts;
+        AddColoredQuad(m_btnMinX + 5.0f * pixelW, m_btnMinY - 5.0f * pixelH,
+                       m_btnMaxX + 5.0f * pixelW, m_btnMaxY - 5.0f * pixelH,
+                       Aion::Vector4(0.02f, 0.03f, 0.05f, 0.40f * alpha), btnShadowVerts);
+        FlushBatch(nullptr, btnShadowVerts);
 
-        // Button 3D block border bevel
-        float bEdge = 0.008f;
-        AddQuad(m_btnMinX, m_btnMaxY - bEdge, m_btnMaxX, m_btnMaxY, btnTopLight, verts);
-        AddQuad(m_btnMinX, m_btnMinY, m_btnMinX + bEdge, m_btnMaxY, btnTopLight, verts);
-        AddQuad(m_btnMinX, m_btnMinY, m_btnMaxX, m_btnMinY + bEdge, btnBotShadow, verts);
-        AddQuad(m_btnMaxX - bEdge, m_btnMinY, m_btnMaxX, m_btnMaxY, btnBotShadow, verts);
+        // 9-Slice Kenney Button (Normal, Hover, or Pressed flat)
+        std::vector<float> btnVerts;
+        Add9Slice(m_btnMinX, m_btnMinY + (pressed ? pressYOffset : 0.0f),
+                  m_btnMaxX, m_btnMaxY + (pressed ? pressYOffset : 0.0f),
+                  20.0f, 384.0f, 128.0f,
+                  btnTint, btnVerts, screenWidth, screenHeight);
+        FlushBatch(activeBtnTex ? activeBtnTex : m_texWhiteFallback, btnVerts);
 
-        // Button face
-        AddQuad(m_btnMinX + bEdge, m_btnMinY + bEdge, m_btnMaxX - bEdge, m_btnMaxY - bEdge, btnColor, verts);
+        // Retry repeat icon on button
+        std::vector<float> iconVerts;
+        float iconSize = 28.0f;
+        float iconHalfW = (iconSize * 0.5f) * pixelW;
+        float iconHalfH = (iconSize * 0.5f) * pixelH;
 
-        // Button Text: "RETRY [R]"
-        float btnPixelW = basePixelW * 3.4f;
-        float btnPixelH = basePixelH * 3.4f;
-        float btnSpacing = btnPixelW * 1.3f;
         std::string btnText = "RETRY [R]";
-        float btnTextWidth = (static_cast<float>(btnText.length()) * 5.0f * btnPixelW) +
-                             (static_cast<float>(btnText.length() - 1) * btnSpacing);
-        float btnStartX = -btnTextWidth * 0.5f;
-        float btnStartY = m_btnMinY + (m_btnMaxY - m_btnMinY) * 0.5f + (3.5f * btnPixelH);
+        float btnTextScale = 0.52f;
+        float btnTextW = MeasureKenneyString(btnText, btnTextScale, screenWidth, 1.5f * pixelW);
+        float totalBtnContentW = (iconSize + 12.0f) * pixelW + btnTextW;
+        float iconCenterX = -totalBtnContentW * 0.5f + iconHalfW;
+        float btnTextX = iconCenterX + iconHalfW + 12.0f * pixelW;
+        float iconCenterY = btnCenterY + 2.0f * pixelH + pressYOffset;
+        float btnTextY = btnCenterY + 10.0f * pixelH + pressYOffset;
 
-        // Text shadow inside button
-        DrawString(btnText, btnStartX + 0.003f, btnStartY - 0.003f,
-                   btnPixelW, btnPixelH, btnSpacing,
-                   Aion::Vector4(0.06f, 0.18f, 0.12f, 0.85f), verts);
+        if (m_texIconRepeat)
+        {
+            AddTexturedQuad(iconCenterX - iconHalfW, iconCenterY - iconHalfH,
+                            iconCenterX + iconHalfW, iconCenterY + iconHalfH,
+                            0.0f, 0.0f, 1.0f, 1.0f,
+                            Aion::Vector4(1.0f, 1.0f, 1.0f, 1.0f * alpha), iconVerts);
+            FlushBatch(m_texIconRepeat, iconVerts);
+        }
 
-        DrawString(btnText, btnStartX, btnStartY,
-                   btnPixelW, btnPixelH, btnSpacing,
-                   Aion::Vector4(1.0f, 1.0f, 1.0f, 1.0f), verts);
+        // Button text
+        DrawKenneyString(btnText, btnTextX + 2.0f * pixelW, btnTextY - 2.0f * pixelH,
+                         btnTextScale, Aion::Vector4(0.04f, 0.15f, 0.08f, 0.90f * alpha),
+                         fontVerts, screenWidth, screenHeight, 1.5f * pixelW);
+        DrawKenneyString(btnText, btnTextX, btnTextY,
+                         btnTextScale, Aion::Vector4(1.0f, 1.0f, 1.0f, 1.0f * alpha),
+                         fontVerts, screenWidth, screenHeight, 1.5f * pixelW);
 
-        // 8. Hint Footer: "PRESS [R] OR [SPACE] TO RETRY"
-        float hintPixelW = basePixelW * 1.9f;
-        float hintPixelH = basePixelH * 1.9f;
-        float hintSpacing = hintPixelW * 1.1f;
+        // 8. Hint Footer
         std::string hintText = "PRESS [R] OR [SPACE] TO RETRY";
-        float hintWidth = (static_cast<float>(hintText.length()) * 5.0f * hintPixelW) +
-                          (static_cast<float>(hintText.length() - 1) * hintSpacing);
-        float hintStartX = -hintWidth * 0.5f;
-        float hintStartY = -0.34f;
+        float hintScale = 0.36f;
+        float hintW = MeasureKenneyString(hintText, hintScale, screenWidth, 1.0f * pixelW);
+        float hintX = -hintW * 0.5f;
+        float hintY = cardY0 + 26.0f * pixelH;
 
-        DrawString(hintText, hintStartX, hintStartY,
-                   hintPixelW, hintPixelH, hintSpacing,
-                   Aion::Vector4(0.85f, 0.88f, 0.92f, 0.80f), verts);
+        DrawKenneyString(hintText, hintX, hintY,
+                         hintScale, Aion::Vector4(0.78f, 0.82f, 0.88f, 0.80f * alpha),
+                         fontVerts, screenWidth, screenHeight, 1.0f * pixelW);
 
-        // 9. Submit batch to GPU
-        glBindVertexArray(m_vao);
-        glBindBuffer(GL_ARRAY_BUFFER, m_vbo);
-        glBufferData(GL_ARRAY_BUFFER, static_cast<GLsizeiptr>(verts.size() * sizeof(float)), verts.data(), GL_DYNAMIC_DRAW);
+        FlushBatch(m_texFontAtlas, fontVerts);
 
-        glUseProgram(m_shaderProgram);
-        glDrawArrays(GL_TRIANGLES, 0, static_cast<GLsizei>(verts.size() / 6));
-
-        glBindVertexArray(0);
-        glBindBuffer(GL_ARRAY_BUFFER, 0);
-        glUseProgram(0);
-
-        // Restore OpenGL state
-        if (!blendEnabled) glDisable(GL_BLEND);
-        glBlendFunc(prevBlendSrc, prevBlendDst);
-        if (depthTestEnabled) glEnable(GL_DEPTH_TEST);
-        if (cullFaceEnabled) glEnable(GL_CULL_FACE);
+        Aion::RenderCommand::ApplyState(prevState);
     }
 
     void GameOverUI::Render(
@@ -763,6 +924,6 @@ void main()
         int completedSegments,
         const char* difficultyStage)
     {
-        RenderGameOver(screenWidth, screenHeight, 0.0f, 0.0f, false, completedSegments, difficultyStage);
+        RenderGameOver(screenWidth, screenHeight, 0.0f, 0.0f, false, completedSegments, difficultyStage, 1.0f);
     }
 } // namespace BlockJumper

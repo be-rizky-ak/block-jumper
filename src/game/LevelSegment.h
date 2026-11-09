@@ -40,14 +40,16 @@ namespace BlockJumper
             const Aion::Vector3& worldEntryPoint,
             const Aion::Vector3& worldExitPoint,
             std::vector<PlatformBox> worldPlatforms,
-            std::vector<std::shared_ptr<Aion::Object3D>> sceneObjects)
+            std::vector<std::shared_ptr<Aion::Object3D>> sceneObjects,
+            std::vector<std::shared_ptr<Aion::Object3D>> decorObjects = {})
             : m_index(index),
               m_name(std::move(name)),
               m_difficulty(difficulty),
               m_worldEntryPoint(worldEntryPoint),
               m_worldExitPoint(worldExitPoint),
               m_worldPlatforms(std::move(worldPlatforms)),
-              m_sceneObjects(std::move(sceneObjects))
+              m_sceneObjects(std::move(sceneObjects)),
+              m_decorObjects(std::move(decorObjects))
         {
             ComputeBounds();
         }
@@ -59,6 +61,7 @@ namespace BlockJumper
         const Aion::Vector3& GetWorldExitPoint() const { return m_worldExitPoint; }
         const std::vector<PlatformBox>& GetPlatforms() const { return m_worldPlatforms; }
         const std::vector<std::shared_ptr<Aion::Object3D>>& GetSceneObjects() const { return m_sceneObjects; }
+        const std::vector<std::shared_ptr<Aion::Object3D>>& GetDecorationObjects() const { return m_decorObjects; }
         const Aion::AABB& GetBounds() const { return m_worldBounds; }
 
         float GetLength() const
@@ -174,6 +177,7 @@ namespace BlockJumper
         Aion::Vector3 m_worldExitPoint{0.0f};
         std::vector<PlatformBox> m_worldPlatforms;
         std::vector<std::shared_ptr<Aion::Object3D>> m_sceneObjects;
+        std::vector<std::shared_ptr<Aion::Object3D>> m_decorObjects;
         Aion::AABB m_worldBounds;
     };
 } // namespace BlockJumper

@@ -58,6 +58,7 @@ namespace BlockJumper
         size_t GetSegmentsGenerated() const { return m_segmentsGenerated; }
         size_t GetActiveSegmentsCount() const { return m_activeSegments.size(); }
         size_t GetActiveSceneObjectsCount() const;
+        size_t GetActiveDecorationObjectsCount() const;
 
         const std::vector<PlatformBox>& GetActivePlatforms() const { return m_activePlatforms; }
         const std::deque<std::shared_ptr<LevelSegment>>& GetActiveSegments() const { return m_activeSegments; }
@@ -88,6 +89,7 @@ namespace BlockJumper
     private:
         void InitializePatterns();
         void LoadPlatformModels();
+        void LoadEnvironmentModels();
         void SpawnStartingPlatform();
         void RebuildActivePlatforms();
         int CalculateCurrentDifficulty() const;
@@ -99,6 +101,24 @@ namespace BlockJumper
             const PlatformBox& plat,
             int difficulty,
             const std::string& objName);
+        void CreatePlatformDecorations(
+            const PlatformBox& plat,
+            int difficulty,
+            int segmentIndex,
+            size_t platformIndex,
+            std::vector<std::shared_ptr<Aion::Object3D>>& decorObjs);
+        void SpawnSegmentScenery(
+            int segmentIndex,
+            int difficulty,
+            const Aion::Vector3& entryPoint,
+            const Aion::Vector3& exitPoint,
+            std::vector<std::shared_ptr<Aion::Object3D>>& decorObjs);
+        std::shared_ptr<Aion::Object3D> CreateDecorObject(
+            const std::shared_ptr<Aion::Model>& model,
+            const Aion::Vector3& position,
+            float scale = 1.0f,
+            float rotYDegrees = 0.0f,
+            const std::string& name = "Decor");
 
     private:
         Aion::Scene* m_scene = nullptr;
@@ -114,6 +134,40 @@ namespace BlockJumper
         std::shared_ptr<Aion::Model> m_snowNarrowModel;
         std::shared_ptr<Aion::Model> m_spikeObstacleWideModel;
         std::shared_ptr<Aion::Model> m_spikeObstacleModel;
+
+        // Cached Kenney Mini-Forest environmental models
+        std::shared_ptr<Aion::Model> m_mfTreeModel;
+        std::shared_ptr<Aion::Model> m_mfTreeHighModel;
+        std::shared_ptr<Aion::Model> m_mfPlantModel;
+        std::shared_ptr<Aion::Model> m_mfStonesModel;
+        std::shared_ptr<Aion::Model> m_mfRocksLowModel;
+        std::shared_ptr<Aion::Model> m_mfRocksHighModel;
+        std::shared_ptr<Aion::Model> m_mfTentModel;
+        std::shared_ptr<Aion::Model> m_mfFenceModel;
+
+        // Cached Kenney Platformer-Kit decorative and nature models
+        std::shared_ptr<Aion::Model> m_pkGrassModel;
+        std::shared_ptr<Aion::Model> m_pkFlowersModel;
+        std::shared_ptr<Aion::Model> m_pkFlowersTallModel;
+        std::shared_ptr<Aion::Model> m_pkPlantModel;
+        std::shared_ptr<Aion::Model> m_pkRocksModel;
+        std::shared_ptr<Aion::Model> m_pkStonesModel;
+        std::shared_ptr<Aion::Model> m_pkMushroomsModel;
+        std::shared_ptr<Aion::Model> m_pkFenceLowModel;
+        std::shared_ptr<Aion::Model> m_pkFenceBrokenModel;
+        std::shared_ptr<Aion::Model> m_pkCrateModel;
+        std::shared_ptr<Aion::Model> m_pkTreePineModel;
+        std::shared_ptr<Aion::Model> m_pkTreePineSmallModel;
+        std::shared_ptr<Aion::Model> m_pkSignModel;
+
+        // Mini-Forest ground patch models
+        std::shared_ptr<Aion::Model> m_mfPatchGrassModel;
+        std::shared_ptr<Aion::Model> m_mfPatchDirtModel;
+
+        // Snow / Mountain nature models
+        std::shared_ptr<Aion::Model> m_pkTreePineSnowModel;
+        std::shared_ptr<Aion::Model> m_pkTreePineSnowSmallModel;
+        std::shared_ptr<Aion::Model> m_pkTreeSnowModel;
 
         // Expanded platform model variant collections for Grass and Snow
         std::vector<PlatformModelVariant> m_grassLargeVariants;
@@ -137,6 +191,7 @@ namespace BlockJumper
         std::vector<float> m_segmentCumulativeStarts;
         size_t m_segmentsGenerated = 0;
         int m_lastPatternIndex = -1;
+        int m_lastDecorCompositionIndex = -1;
         std::deque<int> m_recentPatternsHistory;
         int m_lastReportedDifficulty = 1;
 
