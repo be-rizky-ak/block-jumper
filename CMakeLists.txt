@@ -13,20 +13,25 @@ set(BLOCK_JUMPER_SOURCES
     src/game/BlockJumperApp.cpp
     src/game/GameScene.cpp
     src/game/LevelManager.cpp
+    src/game/SaveManager.cpp
     src/player/PlayerCollider.cpp
     src/player/PlayerController.cpp
     src/camera/FollowCamera.cpp
+    src/ui/GameOverUI.cpp
 )
 
 set(BLOCK_JUMPER_HEADERS
     src/game/GameConfig.h
+    src/game/GameState.h
     src/game/BlockJumperApp.h
     src/game/GameScene.h
     src/game/LevelSegment.h
     src/game/LevelManager.h
+    src/game/SaveManager.h
     src/player/PlayerCollider.h
     src/player/PlayerController.h
     src/camera/FollowCamera.h
+    src/ui/GameOverUI.h
 )
 
 add_executable(BlockJumper

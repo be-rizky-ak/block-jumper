@@ -18,6 +18,9 @@ namespace BlockJumper
     struct SegmentPattern
     {
         std::string Name;
+        int MinDifficulty = 1;
+        int MaxDifficulty = 5;
+        float Weight = 1.0f;
         Aion::Vector3 LocalEntryPoint{0.0f};
         Aion::Vector3 LocalExitPoint{0.0f};
         std::vector<PlatformBox> LocalPlatforms;
@@ -33,12 +36,14 @@ namespace BlockJumper
         LevelSegment(
             int index,
             std::string name,
+            int difficulty,
             const Aion::Vector3& worldEntryPoint,
             const Aion::Vector3& worldExitPoint,
             std::vector<PlatformBox> worldPlatforms,
             std::vector<std::shared_ptr<Aion::Object3D>> sceneObjects)
             : m_index(index),
               m_name(std::move(name)),
+              m_difficulty(difficulty),
               m_worldEntryPoint(worldEntryPoint),
               m_worldExitPoint(worldExitPoint),
               m_worldPlatforms(std::move(worldPlatforms)),
@@ -49,6 +54,7 @@ namespace BlockJumper
 
         int GetIndex() const { return m_index; }
         const std::string& GetName() const { return m_name; }
+        int GetDifficulty() const { return m_difficulty; }
         const Aion::Vector3& GetWorldEntryPoint() const { return m_worldEntryPoint; }
         const Aion::Vector3& GetWorldExitPoint() const { return m_worldExitPoint; }
         const std::vector<PlatformBox>& GetPlatforms() const { return m_worldPlatforms; }
@@ -103,6 +109,34 @@ namespace BlockJumper
             return std::clamp(dot / lenSq, 0.0f, 1.0f);
         }
 
+        /**
+         * @brief Projects a point along the horizontal entry-to-exit progression vector (XZ plane).
+         * Ignores Y (jumping, vertical movement, and falling), while lateral movement perpendicular
+         * to the progression axis produces no progress. Returns a normalized scalar [0.0, 1.0].
+         */
+        float ProjectPointXZ(const Aion::Vector3& point) const
+        {
+            float axisX = m_worldExitPoint.x - m_worldEntryPoint.x;
+            float axisZ = m_worldExitPoint.z - m_worldEntryPoint.z;
+            float lenSqXZ = axisX * axisX + axisZ * axisZ;
+            if (lenSqXZ < 0.0001f)
+            {
+                return 0.0f;
+            }
+
+            float diffX = point.x - m_worldEntryPoint.x;
+            float diffZ = point.z - m_worldEntryPoint.z;
+            float dotXZ = diffX * axisX + diffZ * axisZ;
+            return std::clamp(dotXZ / lenSqXZ, 0.0f, 1.0f);
+        }
+
+        float GetLengthXZ() const
+        {
+            float dx = m_worldExitPoint.x - m_worldEntryPoint.x;
+            float dz = m_worldExitPoint.z - m_worldEntryPoint.z;
+            return std::sqrt(dx * dx + dz * dz);
+        }
+
     private:
         void ComputeBounds()
         {
@@ -135,6 +169,7 @@ namespace BlockJumper
     private:
         int m_index = 0;
         std::string m_name;
+        int m_difficulty = 1;
         Aion::Vector3 m_worldEntryPoint{0.0f};
         Aion::Vector3 m_worldExitPoint{0.0f};
         std::vector<PlatformBox> m_worldPlatforms;

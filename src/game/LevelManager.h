@@ -63,11 +63,24 @@ namespace BlockJumper
          */
         void RecycleSegment(const std::shared_ptr<LevelSegment>& segment);
 
+        /**
+         * @brief Resets level progression and returns difficulty to initial state.
+         */
+        void Reset();
+
+        // Difficulty Progression Telemetry & Validation
+        int GetCurrentDifficulty() const;
+        int GetCompletedSegments() const { return m_currentSegmentIndex; }
+        size_t GetPatternCount() const { return m_patterns.size(); }
+        const char* GetDifficultyStageName(int difficulty) const;
+        bool ValidatePatternTraversal(const SegmentPattern& pattern, const Aion::Vector3& prevExitPoint) const;
+
     private:
         void InitializePatterns();
         void SpawnStartingPlatform();
         void RebuildActivePlatforms();
-        int SelectNextPatternIndex();
+        int CalculateCurrentDifficulty() const;
+        int SelectNextPatternIndex(int targetDifficulty);
 
     private:
         Aion::Scene* m_scene = nullptr;
@@ -81,8 +94,12 @@ namespace BlockJumper
         Aion::Vector3 m_lastExitPoint{0.0f};
         int m_currentSegmentIndex = 0;
         float m_forwardProgress = 0.0f;
+        std::vector<float> m_segmentLengths;
+        std::vector<float> m_segmentCumulativeStarts;
         size_t m_segmentsGenerated = 0;
         int m_lastPatternIndex = -1;
+        std::deque<int> m_recentPatternsHistory;
+        int m_lastReportedDifficulty = 1;
 
         std::mt19937 m_rng{1337};
     };

@@ -3,3 +3,6 @@ bin/
 *.user
 .cache/
 compile_commands.json
+block_jumper_save.json
+*.save
+

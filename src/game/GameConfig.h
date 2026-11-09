@@ -26,8 +26,16 @@ namespace BlockJumper
         Aion::Vector3 Dimensions{1.0f, 1.0f, 1.0f}; // 1x1x1 cube
         Aion::Vector3 HalfExtents{0.5f, 0.5f, 0.5f};
 
-        // Fall limit below which player respawns
+        // Fall limit below which player respawns / simulation terminates
         float VoidFallLimit = -12.0f;
+
+        // Configurable world-space fall death threshold.
+        // Safely below lowest playable platform (lowest platform top is -1.0f; max downward drop is 2.8 units).
+        // Avoids false positives during normal jumps, legitimate descent drops, or landings.
+        float FallDeathThreshold = -5.0f;
+
+        // Intentional duration (seconds) player falls naturally before transitioning to GameOver
+        float FallTransitionDuration = 0.8f;
         // Spawn at the most bottom-right portion of starting platform from isometric viewpoint
         // Screen-right is (+X, -Z), screen-bottom is (+X, +Z) -> (+X) places player at bottom-right
         Aion::Vector3 SpawnPosition{2.2f, 0.5f, 0.4f};
@@ -93,6 +101,45 @@ namespace BlockJumper
     };
 
     /**
+     * @brief Difficulty progression and segment selection tuning parameters.
+     */
+    struct DifficultyConfig
+    {
+        // Initial difficulty level when starting a new run
+        int InitialDifficulty = 1;
+
+        // Configurable maximum difficulty level
+        int MaxDifficulty = 5;
+
+        // Number of completed segments required to advance to the next difficulty level
+        int SegmentsPerDifficultyLevel = 3;
+
+        // Frequency (every N generated segments) at which an easier recovery segment appears for breathing room
+        int EasierSegmentInterval = 4;
+
+        // Number of recently spawned segment patterns to remember and avoid repeating
+        int RepetitionAvoidanceWindow = 3;
+
+        // Verified maximum allowable horizontal jump gap between platforms (units)
+        float MaxJumpGapLimit = 2.8f;
+
+        // Verified maximum allowable vertical step ascent climb (units, JumpHeight is 1.5f)
+        float MaxAscentHeight = 1.2f;
+
+        // Verified maximum allowable vertical descent drop (units)
+        float MaxDescentHeight = 2.8f;
+
+        // Minimum platform horizontal dimension (width/depth) for safe landing area
+        // Stage-specific runtime dimension targets:
+        // - Stage 1 (Easy): 3.8–5.2 units (avg ~4.4) - large, spacious landing areas with gentle lateral shifts
+        // - Stage 2 (Normal): 3.2–4.4 units (avg ~3.5) - reasonably large platforms, selective smaller blocks (2.8–3.0)
+        // - Stage 3 (Challenging): 2.5–3.4 units (avg ~3.1) - frequent zig-zags, swerves, recovery terraces (3.8–4.4)
+        // - Stage 4 (Hard): 2.0–2.8 units (avg ~2.8) - consecutive direction changes, landing ledges (3.4–4.0)
+        // - Stage 5 (Expert): 1.4–2.0 units (avg ~2.1) - precision needle pillars, sanctuary finishes (3.0–3.4)
+        float MinPlatformDimension = 1.3f;
+    };
+
+    /**
      * @brief Complete game configuration.
      */
     struct GameConfig
@@ -100,6 +147,7 @@ namespace BlockJumper
         PlayerConfig Player;
         CameraConfig Camera;
         EndlessConfig Endless;
+        DifficultyConfig Difficulty;
 
         static std::vector<PlatformBox> CreateDefaultLevel()
         {

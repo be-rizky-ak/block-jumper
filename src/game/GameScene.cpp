@@ -3,6 +3,7 @@
 #include <iostream>
 
 #include "Aion/Assets/MeshFactory.h"
+#include "Aion/Math/Math.h"
 #include "Aion/Renderer/Material.h"
 #include "Aion/Scene/CameraComponent.h"
 #include "Aion/Scene/MeshRenderer.h"
@@ -16,6 +17,10 @@ namespace BlockJumper
         {
             return;
         }
+
+        m_config = config;
+        m_gameState = GameState::Playing;
+        m_fallTimer = 0.0f;
 
         std::cout << "[GameScene] Initializing 2.5D Isometric Block Jumper scene..." << std::endl;
 
@@ -84,24 +89,191 @@ namespace BlockJumper
         scene->Add(m_cameraObject);
         scene->SetActiveCamera(cameraComponent);
 
+        // -------------------------------------------------------------
+        // 4. Initialize Game Over UI Overlay
+        // -------------------------------------------------------------
+        m_gameOverUI.Initialize();
+
         std::cout << "[GameScene] Elevated isometric camera initialized (Pitch="
                   << config.Camera.PitchDegrees << " deg, Yaw="
                   << config.Camera.YawDegrees << " deg, FOV="
                   << config.Camera.Fov << " deg)." << std::endl;
-        std::cout << "[GameScene] Isometric scene setup complete." << std::endl;
+        std::cout << "[GameScene] Isometric scene setup complete. Initial state: Playing." << std::endl;
     }
 
-    void GameScene::Update(float /*deltaTime*/)
+    void GameScene::TriggerFall()
+    {
+        if (m_gameState != GameState::Playing)
+        {
+            return; // Trigger fall only once per run
+        }
+
+        m_gameState = GameState::Falling;
+        m_fallTimer = 0.0f;
+        m_deathCount++;
+
+        // Stop accepting movement and jump input
+        if (m_playerController)
+        {
+            m_playerController->SetInputEnabled(false);
+        }
+
+        float playerY = m_player ? m_player->Transform.Position.y : 0.0f;
+        std::cout << "[GameState] Transition: Playing -> Falling. Fall detected at Y="
+                  << playerY << " (Death threshold: " << m_config.Player.FallDeathThreshold
+                  << "). Movement/jump input and segment spawning paused." << std::endl;
+    }
+
+    void GameScene::TriggerGameOver()
+    {
+        if (m_gameState != GameState::Falling)
+        {
+            return;
+        }
+
+        m_gameState = GameState::GameOver;
+
+        // Freeze player simulation cleanly
+        if (m_playerController)
+        {
+            m_playerController->SetFrozen(true);
+        }
+
+        // Capture final run distance from HUD progress measurement
+        m_finalRunDistance = m_levelManager.GetForwardProgress();
+
+        // Update and persist best record before presenting final result
+        m_isNewRecord = m_saveManager.TryUpdateBestDistance(m_finalRunDistance);
+
+        std::cout << "[GameState] Transition: Falling -> GameOver. Simulation frozen cleanly."
+                  << " Run distance: " << m_finalRunDistance << "m"
+                  << (m_isNewRecord ? " (NEW RECORD!)" : "")
+                  << ", Best record: " << m_saveManager.GetBestDistance() << "m. Game Over UI active."
+                  << std::endl;
+    }
+
+    void GameScene::TriggerRetry()
+    {
+        if (m_gameState != GameState::GameOver)
+        {
+            return; // Disallow retry during Playing or Falling transition
+        }
+
+        ResetRun();
+        std::cout << "[GameState] Transition: GameOver -> Playing (Retry executed)." << std::endl;
+    }
+
+    void GameScene::ResetRun()
+    {
+        std::cout << "[GameScene] Executing coordinated run reset..." << std::endl;
+
+        // 1. Reset Game State & Counters
+        m_gameState = GameState::Playing;
+        m_fallTimer = 0.0f;
+        m_finalRunDistance = 0.0f;
+        m_isNewRecord = false;
+        m_retryCount++;
+
+        // 2. Reset Player Kinematics, Velocity, and Orientation
+        if (m_playerController && m_player)
+        {
+            m_playerController->ResetKinematics(m_config.Player.SpawnPosition, -135.0f);
+        }
+
+        // 3. Restore Initial Camera Follow State & Offset
+        if (m_followCamera)
+        {
+            m_followCamera->SnapToTarget();
+        }
+
+        // 4. Reinitialize Level Progression, Segment History, and Active Platforms
+        m_levelManager.Reset();
+
+        if (!m_levelManager.GetActiveSegments().empty() &&
+            !m_levelManager.GetActiveSegments().front()->GetSceneObjects().empty())
+        {
+            m_mainPlatform = m_levelManager.GetActiveSegments().front()->GetSceneObjects().front();
+        }
+
+        // 5. Synchronize fresh active platforms with player collider
+        if (m_playerController)
+        {
+            m_playerController->SetPlatforms(m_levelManager.GetActivePlatforms());
+        }
+
+        std::cout << "[GameScene] Run reset complete. State: Playing. Restored to initial difficulty ("
+                  << m_levelManager.GetDifficultyStageName(m_levelManager.GetCurrentDifficulty())
+                  << ") with " << m_levelManager.GetActivePlatforms().size() << " initial platforms." << std::endl;
+    }
+
+    void GameScene::Update(float deltaTime, int screenWidth, int screenHeight)
     {
         if (!m_player)
         {
             return;
         }
 
-        bool platformsChanged = m_levelManager.Update(m_player->Transform.Position);
-        if (platformsChanged && m_playerController)
+        // 1. Playing State
+        if (m_gameState == GameState::Playing)
         {
-            m_playerController->SetPlatforms(m_levelManager.GetActivePlatforms());
+            // Reliable Fall Detection: Check if player falls below configurable world-space death threshold
+            if (m_player->Transform.Position.y < m_config.Player.FallDeathThreshold)
+            {
+                TriggerFall();
+                return;
+            }
+
+            // Normal progression: update segments and collision
+            bool platformsChanged = m_levelManager.Update(m_player->Transform.Position);
+            if (platformsChanged && m_playerController)
+            {
+                m_playerController->SetPlatforms(m_levelManager.GetActivePlatforms());
+            }
+        }
+        // 2. Falling State: Intentional graceful falling transition under natural gravity
+        else if (m_gameState == GameState::Falling)
+        {
+            m_fallTimer += deltaTime;
+
+            // Physics continues naturally; no segment spawning or difficulty progression occurs
+            if (m_fallTimer >= m_config.Player.FallTransitionDuration ||
+                m_player->Transform.Position.y < m_config.Player.VoidFallLimit)
+            {
+                TriggerGameOver();
+            }
+        }
+        // 3. GameOver State: Simulation is cleanly frozen; poll for Retry action
+        else if (m_gameState == GameState::GameOver)
+        {
+            if (m_gameOverUI.CheckRetryAction(screenWidth, screenHeight))
+            {
+                TriggerRetry();
+            }
+        }
+    }
+
+    void GameScene::RenderUI(int windowWidth, int windowHeight)
+    {
+        if (m_gameState == GameState::Playing || m_gameState == GameState::Falling)
+        {
+            m_gameOverUI.RenderHUD(
+                windowWidth,
+                windowHeight,
+                m_levelManager.GetForwardProgress(),
+                m_levelManager.GetCurrentDifficulty(),
+                m_levelManager.GetDifficultyStageName(m_levelManager.GetCurrentDifficulty()),
+                m_saveManager.GetBestDistance());
+        }
+        else if (m_gameState == GameState::GameOver)
+        {
+            m_gameOverUI.RenderGameOver(
+                windowWidth,
+                windowHeight,
+                m_finalRunDistance,
+                m_saveManager.GetBestDistance(),
+                m_isNewRecord,
+                m_levelManager.GetCompletedSegments(),
+                m_levelManager.GetDifficultyStageName(m_levelManager.GetCurrentDifficulty()));
         }
     }
 } // namespace BlockJumper

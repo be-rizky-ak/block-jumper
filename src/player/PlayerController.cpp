@@ -49,8 +49,33 @@ namespace BlockJumper
         m_simulatedJump = jumpPressed;
     }
 
+    void PlayerController::ResetKinematics(const Aion::Vector3& spawnPos, float facingYaw)
+    {
+        m_horizontalVelocity = Aion::Vector3(0.0f);
+        m_verticalVelocity = 0.0f;
+        m_isGrounded = true;
+        m_inputEnabled = true;
+        m_frozen = false;
+        m_useSimulatedInput = false;
+        m_simulatedForward = 0.0f;
+        m_simulatedRight = 0.0f;
+        m_simulatedJump = false;
+
+        Aion::Object3D* owner = GetOwner();
+        if (owner)
+        {
+            owner->Transform.Position = spawnPos;
+            owner->Transform.Rotation = Aion::Quaternion::FromEuler(0.0f, Aion::Math::Radians(facingYaw), 0.0f);
+        }
+    }
+
     void PlayerController::OnUpdate(float deltaTime)
     {
+        if (m_frozen)
+        {
+            return;
+        }
+
         if (deltaTime <= 0.0f)
         {
             return;
@@ -78,31 +103,34 @@ namespace BlockJumper
         float forwardInput = 0.0f;
         float rightInput = 0.0f;
 
-        if (m_useSimulatedInput)
+        if (m_inputEnabled)
         {
-            forwardInput = m_simulatedForward;
-            rightInput = m_simulatedRight;
-        }
-        else
-        {
-            // Forward (W / Up) and Backward (S / Down)
-            if (Aion::Input::GetKey(Aion::Key::W) || Aion::Input::GetKey(Aion::Key::Up))
+            if (m_useSimulatedInput)
             {
-                forwardInput += 1.0f;
+                forwardInput = m_simulatedForward;
+                rightInput = m_simulatedRight;
             }
-            if (Aion::Input::GetKey(Aion::Key::S) || Aion::Input::GetKey(Aion::Key::Down))
+            else
             {
-                forwardInput -= 1.0f;
-            }
+                // Forward (W / Up) and Backward (S / Down)
+                if (Aion::Input::GetKey(Aion::Key::W) || Aion::Input::GetKey(Aion::Key::Up))
+                {
+                    forwardInput += 1.0f;
+                }
+                if (Aion::Input::GetKey(Aion::Key::S) || Aion::Input::GetKey(Aion::Key::Down))
+                {
+                    forwardInput -= 1.0f;
+                }
 
-            // Right (D / Right) and Left (A / Left)
-            if (Aion::Input::GetKey(Aion::Key::D) || Aion::Input::GetKey(Aion::Key::Right))
-            {
-                rightInput += 1.0f;
-            }
-            if (Aion::Input::GetKey(Aion::Key::A) || Aion::Input::GetKey(Aion::Key::Left))
-            {
-                rightInput -= 1.0f;
+                // Right (D / Right) and Left (A / Left)
+                if (Aion::Input::GetKey(Aion::Key::D) || Aion::Input::GetKey(Aion::Key::Right))
+                {
+                    rightInput += 1.0f;
+                }
+                if (Aion::Input::GetKey(Aion::Key::A) || Aion::Input::GetKey(Aion::Key::Left))
+                {
+                    rightInput -= 1.0f;
+                }
             }
         }
 
@@ -160,13 +188,16 @@ namespace BlockJumper
         // No automatic jumping.
         // -------------------------------------------------------------
         bool jumpRequested = false;
-        if (m_useSimulatedInput)
+        if (m_inputEnabled)
         {
-            jumpRequested = m_simulatedJump;
-        }
-        else
-        {
-            jumpRequested = Aion::Input::GetKey(Aion::Key::Space);
+            if (m_useSimulatedInput)
+            {
+                jumpRequested = m_simulatedJump;
+            }
+            else
+            {
+                jumpRequested = Aion::Input::GetKey(Aion::Key::Space);
+            }
         }
 
         if (jumpRequested && m_isGrounded)
@@ -200,14 +231,13 @@ namespace BlockJumper
             deltaTime);
 
         // -------------------------------------------------------------
-        // 4. Void Fall Recovery
+        // 4. Void Bound Safety Clamp
+        // (Fall detection and run reset are governed by GameScene state flow)
         // -------------------------------------------------------------
-        if (currentPosition.y < m_config.VoidFallLimit)
+        if (currentPosition.y < m_config.VoidFallLimit - 10.0f)
         {
-            currentPosition = m_config.SpawnPosition;
-            m_horizontalVelocity = Aion::Vector3(0.0f);
+            currentPosition.y = m_config.VoidFallLimit - 10.0f;
             m_verticalVelocity = 0.0f;
-            m_isGrounded = true;
         }
 
         // -------------------------------------------------------------

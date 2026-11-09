@@ -79,11 +79,28 @@ namespace BlockJumper
             dt = 0.05f; // Clamp delta time to avoid simulation jumps during screenshot disk I/O
         }
 
-        m_gameScene.Update(dt);
+        int winW = 1280;
+        int winH = 720;
+        if (GetWindow())
+        {
+            winW = GetWindow()->GetWidth();
+            winH = GetWindow()->GetHeight();
+        }
+
+        m_gameScene.Update(dt, winW, winH);
     }
 
     void BlockJumperApp::OnRender()
     {
+        int winW = 1280;
+        int winH = 720;
+        if (GetWindow())
+        {
+            winW = GetWindow()->GetWidth();
+            winH = GetWindow()->GetHeight();
+        }
+
+        m_gameScene.RenderUI(winW, winH);
     }
 
     void BlockJumperApp::OnDestroy()

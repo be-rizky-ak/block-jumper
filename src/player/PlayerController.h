@@ -36,6 +36,18 @@ namespace BlockJumper
 
         const PlayerCollider& GetCollider() const { return m_collider; }
 
+        // Control safety and simulation freeze
+        void SetInputEnabled(bool enabled) { m_inputEnabled = enabled; }
+        bool IsInputEnabled() const { return m_inputEnabled; }
+
+        void SetFrozen(bool frozen) { m_frozen = frozen; }
+        bool IsFrozen() const { return m_frozen; }
+
+        /**
+         * @brief Completely resets player kinematics, velocities, fall state, and input flags.
+         */
+        void ResetKinematics(const Aion::Vector3& spawnPos, float facingYaw = -135.0f);
+
         // Simulation override for automated verification/testing
         // forwardAxis: +1 (W / forward relative to camera), -1 (S / backward)
         // rightAxis:   +1 (D / right relative to camera),   -1 (A / left)
@@ -50,6 +62,9 @@ namespace BlockJumper
         Aion::Vector3 m_horizontalVelocity{0.0f};
         float m_verticalVelocity = 0.0f;
         bool m_isGrounded = true;
+
+        bool m_inputEnabled = true;
+        bool m_frozen = false;
 
         bool m_useSimulatedInput = false;
         float m_simulatedForward = 0.0f;
