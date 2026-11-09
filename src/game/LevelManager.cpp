@@ -2,8 +2,14 @@
 
 #include <algorithm>
 #include <cmath>
+#include <filesystem>
 #include <iostream>
 
+#include "Aion/Assets/AssetManager.h"
+#include "Aion/Assets/Model.h"
+#include "Aion/Importers/ModelImporter.h"
+#include "Aion/Math/Math.h"
+#include "Aion/Math/Quaternion.h"
 #include "Aion/Renderer/Material.h"
 #include "Aion/Scene/MeshRenderer.h"
 
@@ -27,9 +33,11 @@ namespace BlockJumper
         m_segmentsGenerated = 0;
         m_lastPatternIndex = -1;
         m_recentPatternsHistory.clear();
+        m_lastSelectedModelName.clear();
         m_lastReportedDifficulty = m_config.Difficulty.InitialDifficulty;
 
         InitializePatterns();
+        LoadPlatformModels();
         SpawnStartingPlatform();
 
         // Pre-generate configured upcoming segments ahead of starting platform
@@ -61,6 +69,7 @@ namespace BlockJumper
         m_segmentsGenerated = 0;
         m_lastPatternIndex = -1;
         m_recentPatternsHistory.clear();
+        m_lastSelectedModelName.clear();
         m_lastReportedDifficulty = m_config.Difficulty.InitialDifficulty;
         m_rng = std::mt19937{1337};
 
@@ -1203,6 +1212,290 @@ namespace BlockJumper
 
     }
 
+    static std::string ResolveAssetPath(const std::string& relativePath)
+    {
+        if (std::filesystem::exists(relativePath))
+        {
+            return relativePath;
+        }
+        std::string candidate1 = "block-jumper-stagging/" + relativePath;
+        if (std::filesystem::exists(candidate1))
+        {
+            return candidate1;
+        }
+        std::string candidate2 = "../" + relativePath;
+        if (std::filesystem::exists(candidate2))
+        {
+            return candidate2;
+        }
+        return relativePath;
+    }
+
+    void LevelManager::LoadPlatformModels()
+    {
+        std::cout << "[LevelManager] Pre-loading Kenney 3D platform and obstacle models..." << std::endl;
+        m_grassLargeModel = Aion::AssetManager::LoadModel(ResolveAssetPath("assets/models/kenney_platformer-kit/models/block-grass-large.glb"));
+        m_grassStandardModel = Aion::AssetManager::LoadModel(ResolveAssetPath("assets/models/kenney_platformer-kit/models/block-grass.glb"));
+        m_grassNarrowModel = Aion::AssetManager::LoadModel(ResolveAssetPath("assets/models/kenney_platformer-kit/models/block-grass-narrow.glb"));
+        m_snowLargeModel = Aion::AssetManager::LoadModel(ResolveAssetPath("assets/models/kenney_platformer-kit/models/block-snow-large.glb"));
+        m_snowStandardModel = Aion::AssetManager::LoadModel(ResolveAssetPath("assets/models/kenney_platformer-kit/models/block-snow.glb"));
+        m_snowNarrowModel = Aion::AssetManager::LoadModel(ResolveAssetPath("assets/models/kenney_platformer-kit/models/block-snow-narrow.glb"));
+        m_spikeObstacleWideModel = Aion::AssetManager::LoadModel(ResolveAssetPath("assets/models/kenney_platformer-kit/models/spike-block-wide.glb"));
+        m_spikeObstacleModel = Aion::AssetManager::LoadModel(ResolveAssetPath("assets/models/kenney_platformer-kit/models/spike-block.glb"));
+
+        auto addVariant = [](std::vector<PlatformModelVariant>& list,
+                             const std::string& path,
+                             float bw, float bd, float bh,
+                             bool canRotate,
+                             const std::string& name)
+        {
+            auto model = Aion::AssetManager::LoadModel(ResolveAssetPath(path));
+            if (model)
+            {
+                list.push_back(PlatformModelVariant{
+                    .Model = model,
+                    .BaseWidth = bw,
+                    .BaseDepth = bd,
+                    .BaseHeight = bh,
+                    .CanRotateY = canRotate,
+                    .Name = name
+                });
+            }
+        };
+
+        // 1. Grass Large variants (>= 3.0m)
+        m_grassLargeVariants.clear();
+        addVariant(m_grassLargeVariants, "assets/models/kenney_platformer-kit/models/block-grass-large.glb", 2.0f, 2.0f, 1.0f, false, "block-grass-large");
+        addVariant(m_grassLargeVariants, "assets/models/kenney_platformer-kit/models/block-grass-overhang-large.glb", 2.0f, 2.0f, 1.0f, false, "block-grass-overhang-large");
+        addVariant(m_grassLargeVariants, "assets/models/kenney_platformer-kit/models/block-grass-low-large.glb", 2.0f, 2.0f, 0.5f, false, "block-grass-low-large");
+        addVariant(m_grassLargeVariants, "assets/models/kenney_platformer-kit/models/block-grass-overhang-low-large.glb", 2.0f, 2.0f, 0.5f, false, "block-grass-overhang-low-large");
+
+        // 2. Grass Standard variants (2.0m - 3.0m)
+        m_grassStandardVariants.clear();
+        addVariant(m_grassStandardVariants, "assets/models/kenney_platformer-kit/models/block-grass.glb", 1.0f, 1.0f, 1.0f, false, "block-grass");
+        addVariant(m_grassStandardVariants, "assets/models/kenney_platformer-kit/models/block-grass-overhang-edge.glb", 1.0f, 1.0f, 1.0f, true, "block-grass-overhang-edge");
+        addVariant(m_grassStandardVariants, "assets/models/kenney_platformer-kit/models/block-grass-overhang-corner.glb", 1.0f, 1.0f, 1.0f, true, "block-grass-overhang-corner");
+        addVariant(m_grassStandardVariants, "assets/models/kenney_platformer-kit/models/block-grass-edge.glb", 1.0f, 1.0f, 1.0f, true, "block-grass-edge");
+        addVariant(m_grassStandardVariants, "assets/models/kenney_platformer-kit/models/block-grass-corner.glb", 1.0f, 1.0f, 1.0f, true, "block-grass-corner");
+        addVariant(m_grassStandardVariants, "assets/models/kenney_platformer-kit/models/block-grass-low.glb", 1.0f, 1.0f, 0.5f, false, "block-grass-low");
+        addVariant(m_grassStandardVariants, "assets/models/kenney_platformer-kit/models/block-grass-overhang-low.glb", 1.0f, 1.0f, 0.5f, false, "block-grass-overhang-low");
+
+        // 3. Grass Narrow variants (< 2.0m)
+        m_grassNarrowVariants.clear();
+        addVariant(m_grassNarrowVariants, "assets/models/kenney_platformer-kit/models/block-grass-narrow.glb", 0.7f, 0.7f, 1.0f, false, "block-grass-narrow");
+        addVariant(m_grassNarrowVariants, "assets/models/kenney_platformer-kit/models/block-grass-overhang-narrow.glb", 0.7f, 0.7f, 1.0f, false, "block-grass-overhang-narrow");
+        addVariant(m_grassNarrowVariants, "assets/models/kenney_platformer-kit/models/block-grass-low-narrow.glb", 0.7f, 0.7f, 0.5f, false, "block-grass-low-narrow");
+        addVariant(m_grassNarrowVariants, "assets/models/kenney_platformer-kit/models/block-grass-overhang-low-narrow.glb", 0.7f, 0.7f, 0.5f, false, "block-grass-overhang-low-narrow");
+
+        // 4. Snow Large variants (>= 3.0m)
+        m_snowLargeVariants.clear();
+        addVariant(m_snowLargeVariants, "assets/models/kenney_platformer-kit/models/block-snow-large.glb", 2.0f, 2.0f, 1.0f, false, "block-snow-large");
+        addVariant(m_snowLargeVariants, "assets/models/kenney_platformer-kit/models/block-snow-overhang-large.glb", 2.0f, 2.0f, 1.0f, false, "block-snow-overhang-large");
+        addVariant(m_snowLargeVariants, "assets/models/kenney_platformer-kit/models/block-snow-low-large.glb", 2.0f, 2.0f, 0.5f, false, "block-snow-low-large");
+        addVariant(m_snowLargeVariants, "assets/models/kenney_platformer-kit/models/block-snow-overhang-low-large.glb", 2.0f, 2.0f, 0.5f, false, "block-snow-overhang-low-large");
+
+        // 5. Snow Standard variants (2.0m - 3.0m)
+        m_snowStandardVariants.clear();
+        addVariant(m_snowStandardVariants, "assets/models/kenney_platformer-kit/models/block-snow.glb", 1.0f, 1.0f, 1.0f, false, "block-snow");
+        addVariant(m_snowStandardVariants, "assets/models/kenney_platformer-kit/models/block-snow-overhang-edge.glb", 1.0f, 1.0f, 1.0f, true, "block-snow-overhang-edge");
+        addVariant(m_snowStandardVariants, "assets/models/kenney_platformer-kit/models/block-snow-overhang-corner.glb", 1.0f, 1.0f, 1.0f, true, "block-snow-overhang-corner");
+        addVariant(m_snowStandardVariants, "assets/models/kenney_platformer-kit/models/block-snow-edge.glb", 1.0f, 1.0f, 1.0f, true, "block-snow-edge");
+        addVariant(m_snowStandardVariants, "assets/models/kenney_platformer-kit/models/block-snow-corner.glb", 1.0f, 1.0f, 1.0f, true, "block-snow-corner");
+        addVariant(m_snowStandardVariants, "assets/models/kenney_platformer-kit/models/block-snow-low.glb", 1.0f, 1.0f, 0.5f, false, "block-snow-low");
+        addVariant(m_snowStandardVariants, "assets/models/kenney_platformer-kit/models/block-snow-overhang-low.glb", 1.0f, 1.0f, 0.5f, false, "block-snow-overhang-low");
+
+        // 6. Snow Narrow variants (< 2.0m)
+        m_snowNarrowVariants.clear();
+        addVariant(m_snowNarrowVariants, "assets/models/kenney_platformer-kit/models/block-snow-narrow.glb", 0.7f, 0.7f, 1.0f, false, "block-snow-narrow");
+        addVariant(m_snowNarrowVariants, "assets/models/kenney_platformer-kit/models/block-snow-overhang-narrow.glb", 0.7f, 0.7f, 1.0f, false, "block-snow-overhang-narrow");
+        addVariant(m_snowNarrowVariants, "assets/models/kenney_platformer-kit/models/block-snow-low-narrow.glb", 0.7f, 0.7f, 0.5f, false, "block-snow-low-narrow");
+        addVariant(m_snowNarrowVariants, "assets/models/kenney_platformer-kit/models/block-snow-overhang-low-narrow.glb", 0.7f, 0.7f, 0.5f, false, "block-snow-overhang-low-narrow");
+
+        std::cout << "[LevelManager] Pre-loaded "
+                  << (m_grassLargeVariants.size() + m_grassStandardVariants.size() + m_grassNarrowVariants.size())
+                  << " Grass platform variants and "
+                  << (m_snowLargeVariants.size() + m_snowStandardVariants.size() + m_snowNarrowVariants.size())
+                  << " Snow platform variants for dynamic course generation." << std::endl;
+    }
+
+    PlatformModelVariant LevelManager::SelectPlatformModelVariant(
+        const PlatformBox& plat,
+        int difficulty)
+    {
+        float maxHoriz = std::max(plat.Dimensions.x, plat.Dimensions.z);
+        float minHoriz = std::min(plat.Dimensions.x, plat.Dimensions.z);
+
+        const std::vector<PlatformModelVariant>* pool = nullptr;
+
+        if (difficulty >= 4) // Stages 4 & 5 (Hard & Expert) use snow theme
+        {
+            if (maxHoriz >= 3.0f && !m_snowLargeVariants.empty())
+            {
+                pool = &m_snowLargeVariants;
+            }
+            else if (minHoriz < 2.0f && !m_snowNarrowVariants.empty())
+            {
+                pool = &m_snowNarrowVariants;
+            }
+            else if (!m_snowStandardVariants.empty())
+            {
+                pool = &m_snowStandardVariants;
+            }
+        }
+        else // Stages 1, 2, 3 use grass theme
+        {
+            if (maxHoriz >= 3.0f && !m_grassLargeVariants.empty())
+            {
+                pool = &m_grassLargeVariants;
+            }
+            else if (minHoriz < 2.0f && !m_grassNarrowVariants.empty())
+            {
+                pool = &m_grassNarrowVariants;
+            }
+            else if (!m_grassStandardVariants.empty())
+            {
+                pool = &m_grassStandardVariants;
+            }
+        }
+
+        if (!pool || pool->empty())
+        {
+            return PlatformModelVariant{nullptr, 1.0f, 1.0f, 1.0f, false, "Fallback"};
+        }
+
+        // Repetition avoidance: avoid picking the exact same visual model variant for consecutive platforms
+        std::vector<const PlatformModelVariant*> validCandidates;
+        validCandidates.reserve(pool->size());
+        for (const auto& variant : *pool)
+        {
+            if (pool->size() > 1 && variant.Name == m_lastSelectedModelName)
+            {
+                continue;
+            }
+            validCandidates.push_back(&variant);
+        }
+
+        if (validCandidates.empty())
+        {
+            for (const auto& variant : *pool)
+            {
+                validCandidates.push_back(&variant);
+            }
+        }
+
+        std::uniform_int_distribution<size_t> dist(0, validCandidates.size() - 1);
+        const auto* chosen = validCandidates[dist(m_rng)];
+        m_lastSelectedModelName = chosen->Name;
+        return *chosen;
+    }
+
+    std::shared_ptr<Aion::Object3D> LevelManager::CreatePlatformObject(
+        const PlatformBox& plat,
+        int difficulty,
+        const std::string& objName)
+    {
+        std::shared_ptr<Aion::Model> selectedModel = nullptr;
+        float baseWidth = 1.0f;
+        float baseDepth = 1.0f;
+        float baseHeight = 1.0f;
+        Aion::Quaternion rotation = Aion::Quaternion::Identity();
+
+        if (plat.IsSolidObstacle)
+        {
+            float maxDim = std::max(plat.Dimensions.x, plat.Dimensions.z);
+            if (maxDim >= 1.8f && m_spikeObstacleWideModel)
+            {
+                selectedModel = m_spikeObstacleWideModel;
+                baseHeight = 0.9f;
+                if (plat.Dimensions.x < plat.Dimensions.z)
+                {
+                    // Obstacle runs along Z; rotate model 90 degrees so wide X axis runs along Z
+                    rotation = Aion::Quaternion::FromEuler(0.0f, Aion::Math::Radians(90.0f), 0.0f);
+                    baseWidth = 0.9f;
+                    baseDepth = 2.4f;
+                }
+                else
+                {
+                    baseWidth = 2.4f;
+                    baseDepth = 0.9f;
+                }
+            }
+            else if (m_spikeObstacleModel)
+            {
+                selectedModel = m_spikeObstacleModel;
+                baseWidth = 0.9f;
+                baseDepth = 0.9f;
+                baseHeight = 0.9f;
+            }
+        }
+        else
+        {
+            // Deterministic model for starting plaza to keep lighting stability pixel check consistent
+            if (plat.Name == "StartPlatform" && m_grassLargeModel)
+            {
+                selectedModel = m_grassLargeModel;
+                baseWidth = 2.0f;
+                baseDepth = 2.0f;
+                baseHeight = 1.0f;
+            }
+            else
+            {
+                auto variant = SelectPlatformModelVariant(plat, difficulty);
+                selectedModel = variant.Model;
+                baseWidth = variant.BaseWidth;
+                baseDepth = variant.BaseDepth;
+                baseHeight = variant.BaseHeight;
+
+                // For square platforms that support rotation, introduce 90-degree visual variation
+                if (variant.CanRotateY && std::abs(plat.Dimensions.x - plat.Dimensions.z) < 0.25f)
+                {
+                    std::uniform_int_distribution<int> rotDist(0, 3);
+                    int rotStep = rotDist(m_rng);
+                    if (rotStep > 0)
+                    {
+                        rotation = Aion::Quaternion::FromEuler(0.0f, Aion::Math::Radians(90.0f * rotStep), 0.0f);
+                    }
+                }
+            }
+        }
+
+        if (selectedModel)
+        {
+            auto platObj = Aion::ModelImporter::CreateModelObject(selectedModel);
+            if (platObj)
+            {
+                platObj->SetName(objName);
+                // Kenney models: pivot at base (Y=0), top surface at Y=baseHeight.
+                // Align base to (plat.Position.y - 0.5f * plat.Dimensions.y) so that
+                // the rendered top surface precisely matches plat.GetTopSurfaceY().
+                platObj->Transform.Position = Aion::Vector3(
+                    plat.Position.x,
+                    plat.Position.y - 0.5f * plat.Dimensions.y,
+                    plat.Position.z);
+                platObj->Transform.Rotation = rotation;
+                platObj->Transform.Scale = Aion::Vector3(
+                    plat.Dimensions.x / baseWidth,
+                    plat.Dimensions.y / baseHeight,
+                    plat.Dimensions.z / baseDepth);
+
+                return platObj;
+            }
+        }
+
+        // Safe fallback to primitive cube mesh if model loading failed
+        auto platObj = std::make_shared<Aion::Object3D>(objName);
+        auto mat = std::make_shared<Aion::Material>();
+        mat->BaseColor = plat.Color;
+        mat->MetallicFactor = plat.Metallic;
+        mat->RoughnessFactor = plat.Roughness;
+
+        platObj->AddComponent<Aion::MeshRenderer>(m_cubeMesh, mat);
+        platObj->Transform.Position = plat.Position;
+        platObj->Transform.Scale = plat.Dimensions;
+
+        return platObj;
+    }
+
     void LevelManager::SpawnStartingPlatform()
     {
         std::vector<PlatformBox> startPlatforms;
@@ -1243,16 +1536,7 @@ namespace BlockJumper
 
         for (const auto& plat : startPlatforms)
         {
-            auto platObj = std::make_shared<Aion::Object3D>(plat.Name);
-            auto mat = std::make_shared<Aion::Material>();
-            mat->BaseColor = plat.Color;
-            mat->MetallicFactor = plat.Metallic;
-            mat->RoughnessFactor = plat.Roughness;
-
-            platObj->AddComponent<Aion::MeshRenderer>(m_cubeMesh, mat);
-            platObj->Transform.Position = plat.Position;
-            platObj->Transform.Scale = plat.Dimensions;
-
+            auto platObj = CreatePlatformObject(plat, 1, plat.Name);
             if (m_scene)
             {
                 m_scene->Add(platObj);
@@ -1741,16 +2025,7 @@ namespace BlockJumper
 
             std::string objName = "Seg" + std::to_string(segmentIndex) + "_" + plat.Name;
 
-            auto platObj = std::make_shared<Aion::Object3D>(objName);
-            auto mat = std::make_shared<Aion::Material>();
-            mat->BaseColor = plat.Color;
-            mat->MetallicFactor = plat.Metallic;
-            mat->RoughnessFactor = plat.Roughness;
-
-            platObj->AddComponent<Aion::MeshRenderer>(m_cubeMesh, mat);
-            platObj->Transform.Position = plat.Position;
-            platObj->Transform.Scale = plat.Dimensions;
-
+            auto platObj = CreatePlatformObject(plat, targetDiff, objName);
             if (m_scene)
             {
                 m_scene->Add(platObj);

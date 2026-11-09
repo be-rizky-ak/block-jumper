@@ -24,6 +24,10 @@ namespace BlockJumper
         float GetSpeed() const;
         float GetVerticalVelocity() const { return m_verticalVelocity; }
         bool IsGrounded() const { return m_isGrounded; }
+        bool JustJumped() const { return m_justJumped; }
+        bool JustLanded() const { return m_justLanded; }
+        bool IsFalling() const { return !m_isGrounded && m_verticalVelocity < 0.0f; }
+        bool IsAscending() const { return !m_isGrounded && m_verticalVelocity > 0.0f; }
 
         const PlayerConfig& GetConfig() const { return m_config; }
         void SetConfig(const PlayerConfig& config) { m_config = config; }
@@ -62,6 +66,8 @@ namespace BlockJumper
         Aion::Vector3 m_horizontalVelocity{0.0f};
         float m_verticalVelocity = 0.0f;
         bool m_isGrounded = true;
+        bool m_justJumped = false;
+        bool m_justLanded = false;
 
         bool m_inputEnabled = true;
         bool m_frozen = false;

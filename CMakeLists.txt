@@ -16,6 +16,7 @@ set(BLOCK_JUMPER_SOURCES
     src/game/SaveManager.cpp
     src/player/PlayerCollider.cpp
     src/player/PlayerController.cpp
+    src/player/PlayerAnimationController.cpp
     src/camera/FollowCamera.cpp
     src/ui/GameOverUI.cpp
 )
@@ -30,6 +31,7 @@ set(BLOCK_JUMPER_HEADERS
     src/game/SaveManager.h
     src/player/PlayerCollider.h
     src/player/PlayerController.h
+    src/player/PlayerAnimationController.h
     src/camera/FollowCamera.h
     src/ui/GameOverUI.h
 )

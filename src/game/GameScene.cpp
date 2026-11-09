@@ -1,9 +1,13 @@
 #include "GameScene.h"
 
+#include <filesystem>
 #include <iostream>
 
+#include "Aion/Assets/AssetManager.h"
 #include "Aion/Assets/MeshFactory.h"
+#include "Aion/Importers/ModelImporter.h"
 #include "Aion/Math/Math.h"
+#include "Aion/Math/Quaternion.h"
 #include "Aion/Renderer/Material.h"
 #include "Aion/Scene/CameraComponent.h"
 #include "Aion/Scene/MeshRenderer.h"
@@ -44,31 +48,83 @@ namespace BlockJumper
                   << " active segments." << std::endl;
 
         // -------------------------------------------------------------
-        // 2. Player Character (Primitive 3D Block)
+        // 2. Player Character (Kenney 3D Character)
         // -------------------------------------------------------------
-        m_player = std::make_shared<Aion::Object3D>("Player");
+        std::string rawCharPath = "assets/models/kenney_mini-characters/models/character-male-a.glb";
+        std::string charPath = rawCharPath;
+        if (!std::filesystem::exists(charPath))
+        {
+            if (std::filesystem::exists("block-jumper-stagging/" + rawCharPath))
+            {
+                charPath = "block-jumper-stagging/" + rawCharPath;
+            }
+            else if (std::filesystem::exists("../" + rawCharPath))
+            {
+                charPath = "../" + rawCharPath;
+            }
+        }
+        std::cout << "[GameScene] Loading Kenney 3D player character: " << charPath << std::endl;
+        auto charModel = Aion::AssetManager::LoadModel(charPath);
 
-        auto playerMaterial = std::make_shared<Aion::Material>();
-        playerMaterial->BaseColor = Aion::Vector4(1.0f, 0.48f, 0.12f, 1.0f); // Vibrant orange
-        playerMaterial->MetallicFactor = 0.2f;
-        playerMaterial->RoughnessFactor = 0.35f;
+        if (charModel)
+        {
+            m_player = Aion::ModelImporter::CreateModelObject(charModel);
+            if (m_player)
+            {
+                m_player->SetName("Player");
+                // Align visual model child nodes:
+                // Unscaled model height is ~0.67 units, base at Y=0.
+                // Scale factor 1.45 scales height to ~0.97 units (~1.0 unit player cube height).
+                // Offset Y=-0.5 places character feet at bottom of collision box (currentPosition.y - 0.5).
+                // Rotation 180 deg around Y aligns +Z glTF forward facing with -Z movement forward.
+                for (const auto& child : m_player->GetChildren())
+                {
+                    if (child)
+                    {
+                        child->Transform.Position = Aion::Vector3(0.0f, -0.5f, 0.0f);
+                        child->Transform.Rotation = Aion::Quaternion::FromEuler(0.0f, Aion::Math::Radians(180.0f), 0.0f);
+                        child->Transform.Scale = Aion::Vector3(1.45f);
+                    }
+                }
+            }
+        }
 
-        m_player->AddComponent<Aion::MeshRenderer>(cubeMesh, playerMaterial);
+        // Safe fallback to primitive 3D block if model loading failed
+        if (!m_player)
+        {
+            m_player = std::make_shared<Aion::Object3D>("Player");
+
+            auto playerMaterial = std::make_shared<Aion::Material>();
+            playerMaterial->BaseColor = Aion::Vector4(1.0f, 0.48f, 0.12f, 1.0f); // Vibrant orange
+            playerMaterial->MetallicFactor = 0.2f;
+            playerMaterial->RoughnessFactor = 0.35f;
+
+            m_player->AddComponent<Aion::MeshRenderer>(cubeMesh, playerMaterial);
+        }
 
         // Position player on top of the central starting plaza
         m_player->Transform.Position = config.Player.SpawnPosition;
-        m_player->Transform.Scale = config.Player.Dimensions;
+        m_player->Transform.Scale = Aion::Vector3(1.0f);
 
         m_playerController = m_player->AddComponent<PlayerController>(
             config.Player,
             m_levelManager.GetActivePlatforms(),
             config.Camera.YawDegrees);
 
+        auto* animComp = m_player->GetComponent<Aion::AnimationComponent>();
+        if (animComp)
+        {
+            m_playerAnimController = m_player->AddComponent<PlayerAnimationController>();
+            m_playerAnimController->Initialize(m_playerController, animComp);
+            std::cout << "[GameScene] Attached PlayerAnimationController with Kenney character model." << std::endl;
+        }
+
         scene->Add(m_player);
         std::cout << "[GameScene] Player character spawned at ("
                   << config.Player.SpawnPosition.x << ", "
                   << config.Player.SpawnPosition.y << ", "
                   << config.Player.SpawnPosition.z << ")" << std::endl;
+
 
         // -------------------------------------------------------------
         // 3. Elevated Isometric 2.5D Camera
@@ -178,6 +234,11 @@ namespace BlockJumper
         if (m_playerController && m_player)
         {
             m_playerController->ResetKinematics(m_config.Player.SpawnPosition, -135.0f);
+        }
+
+        if (m_playerAnimController)
+        {
+            m_playerAnimController->Reset();
         }
 
         // 3. Restore Initial Camera Follow State & Offset

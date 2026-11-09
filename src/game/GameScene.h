@@ -10,6 +10,7 @@
 #include "game/GameState.h"
 #include "game/LevelManager.h"
 #include "game/SaveManager.h"
+#include "player/PlayerAnimationController.h"
 #include "player/PlayerController.h"
 #include "ui/GameOverUI.h"
 
@@ -53,6 +54,7 @@ namespace BlockJumper
 
         std::shared_ptr<Aion::Object3D> GetCameraObject() const { return m_cameraObject; }
         PlayerController* GetPlayerController() const { return m_playerController; }
+        PlayerAnimationController* GetPlayerAnimationController() const { return m_playerAnimController; }
         FollowCamera* GetFollowCamera() const { return m_followCamera; }
 
         LevelManager& GetLevelManager() { return m_levelManager; }
@@ -74,6 +76,7 @@ namespace BlockJumper
         std::shared_ptr<Aion::Object3D> m_cameraObject;
 
         PlayerController* m_playerController = nullptr;
+        PlayerAnimationController* m_playerAnimController = nullptr;
         FollowCamera* m_followCamera = nullptr;
 
         GameState m_gameState = GameState::Playing;

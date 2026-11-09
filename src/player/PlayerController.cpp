@@ -54,6 +54,8 @@ namespace BlockJumper
         m_horizontalVelocity = Aion::Vector3(0.0f);
         m_verticalVelocity = 0.0f;
         m_isGrounded = true;
+        m_justJumped = false;
+        m_justLanded = false;
         m_inputEnabled = true;
         m_frozen = false;
         m_useSimulatedInput = false;
@@ -93,6 +95,9 @@ namespace BlockJumper
 
         Aion::Vector3 currentPosition = owner->Transform.Position;
         float previousY = currentPosition.y;
+        bool wasGrounded = m_isGrounded;
+        m_justJumped = false;
+        m_justLanded = false;
 
         // -------------------------------------------------------------
         // 1. Direct Camera-Relative Movement
@@ -204,6 +209,7 @@ namespace BlockJumper
         {
             m_verticalVelocity = m_config.JumpVelocity;
             m_isGrounded = false;
+            m_justJumped = true;
         }
 
         if (!m_isGrounded)
@@ -230,6 +236,11 @@ namespace BlockJumper
             previousY,
             deltaTime);
 
+        if (!wasGrounded && m_isGrounded)
+        {
+            m_justLanded = true;
+        }
+
         // -------------------------------------------------------------
         // 4. Void Bound Safety Clamp
         // (Fall detection and run reset are governed by GameScene state flow)
@@ -246,7 +257,13 @@ namespace BlockJumper
         if (GetSpeed() > 0.2f)
         {
             float facingYaw = std::atan2(-m_horizontalVelocity.x, -m_horizontalVelocity.z);
-            owner->Transform.Rotation = Aion::Quaternion::FromEuler(0.0f, facingYaw, 0.0f);
+            Aion::Quaternion targetRot = Aion::Quaternion::FromEuler(0.0f, facingYaw, 0.0f);
+            float turnRate = 18.0f * deltaTime;
+            owner->Transform.Rotation = Aion::Quaternion::Slerp(
+                owner->Transform.Rotation,
+                targetRot,
+                std::clamp(turnRate, 0.0f, 1.0f)
+            ).Normalized();
         }
 
         owner->Transform.Position = currentPosition;

@@ -14,6 +14,16 @@
 
 namespace BlockJumper
 {
+    struct PlatformModelVariant
+    {
+        std::shared_ptr<Aion::Model> Model;
+        float BaseWidth = 1.0f;
+        float BaseDepth = 1.0f;
+        float BaseHeight = 1.0f;
+        bool CanRotateY = false;
+        std::string Name;
+    };
+
     /**
      * @brief Manages procedural endless level generation, progression tracking,
      * and automatic segment recycling for Block Jumper.
@@ -77,15 +87,44 @@ namespace BlockJumper
 
     private:
         void InitializePatterns();
+        void LoadPlatformModels();
         void SpawnStartingPlatform();
         void RebuildActivePlatforms();
         int CalculateCurrentDifficulty() const;
         int SelectNextPatternIndex(int targetDifficulty);
+        PlatformModelVariant SelectPlatformModelVariant(
+            const PlatformBox& plat,
+            int difficulty);
+        std::shared_ptr<Aion::Object3D> CreatePlatformObject(
+            const PlatformBox& plat,
+            int difficulty,
+            const std::string& objName);
 
     private:
         Aion::Scene* m_scene = nullptr;
         GameConfig m_config;
         std::shared_ptr<Aion::Mesh> m_cubeMesh;
+
+        // Cached Kenney 3D platform and obstacle models for reuse
+        std::shared_ptr<Aion::Model> m_grassLargeModel;
+        std::shared_ptr<Aion::Model> m_grassStandardModel;
+        std::shared_ptr<Aion::Model> m_grassNarrowModel;
+        std::shared_ptr<Aion::Model> m_snowLargeModel;
+        std::shared_ptr<Aion::Model> m_snowStandardModel;
+        std::shared_ptr<Aion::Model> m_snowNarrowModel;
+        std::shared_ptr<Aion::Model> m_spikeObstacleWideModel;
+        std::shared_ptr<Aion::Model> m_spikeObstacleModel;
+
+        // Expanded platform model variant collections for Grass and Snow
+        std::vector<PlatformModelVariant> m_grassLargeVariants;
+        std::vector<PlatformModelVariant> m_grassStandardVariants;
+        std::vector<PlatformModelVariant> m_grassNarrowVariants;
+
+        std::vector<PlatformModelVariant> m_snowLargeVariants;
+        std::vector<PlatformModelVariant> m_snowStandardVariants;
+        std::vector<PlatformModelVariant> m_snowNarrowVariants;
+
+        std::string m_lastSelectedModelName;
 
         std::vector<SegmentPattern> m_patterns;
         std::deque<std::shared_ptr<LevelSegment>> m_activeSegments;
