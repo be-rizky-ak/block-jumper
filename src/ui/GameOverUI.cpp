@@ -15,6 +15,7 @@
 #include "Aion/Renderer/Texture.h"
 #include "Aion/Renderer/TextureLibrary.h"
 #include "Aion/Renderer/VertexArray.h"
+#include "Aion/Assets/SVGImporter.h"
 #include "ui/KenneyFontAtlas.h"
 
 namespace BlockJumper
@@ -167,6 +168,8 @@ void main()
         m_texStageIndicator.reset();
         m_texDivider.reset();
         m_texWhiteFallback.reset();
+
+        Aion::SVGImporter::ClearCache();
 
         m_vertexArray.reset();
         m_shader.reset();
@@ -356,6 +359,95 @@ void main()
         float ndcY = 1.0f - (mouseY / static_cast<float>(screenHeight)) * 2.0f;
 
         return (ndcX >= m_btnMinX && ndcX <= m_btnMaxX && ndcY >= m_btnMinY && ndcY <= m_btnMaxY);
+    }
+
+    bool GameOverUI::IsMouseOverHUDOptions(float mouseX, float mouseY, int screenWidth, int screenHeight) const
+    {
+        if (screenWidth <= 0 || screenHeight <= 0)
+        {
+            return false;
+        }
+
+        float ndcX = (mouseX / static_cast<float>(screenWidth)) * 2.0f - 1.0f;
+        float ndcY = 1.0f - (mouseY / static_cast<float>(screenHeight)) * 2.0f;
+
+        return (ndcX >= m_hudOptMinX && ndcX <= m_hudOptMaxX && ndcY >= m_hudOptMinY && ndcY <= m_hudOptMaxY);
+    }
+
+    bool GameOverUI::IsMouseOverGameOverOptions(float mouseX, float mouseY, int screenWidth, int screenHeight) const
+    {
+        if (screenWidth <= 0 || screenHeight <= 0)
+        {
+            return false;
+        }
+
+        float ndcX = (mouseX / static_cast<float>(screenWidth)) * 2.0f - 1.0f;
+        float ndcY = 1.0f - (mouseY / static_cast<float>(screenHeight)) * 2.0f;
+
+        return (ndcX >= m_goOptMinX && ndcX <= m_goOptMaxX && ndcY >= m_goOptMinY && ndcY <= m_goOptMaxY);
+    }
+
+    void GameOverUI::ResetInputState()
+    {
+        m_hudOptionsKeyPrev = true;
+        m_hudOptionsMousePrev = true;
+        m_gameOverOptionsKeyPrev = true;
+        m_gameOverOptionsMousePrev = true;
+        m_buttonPressed = false;
+    }
+
+    bool GameOverUI::CheckHUDOptionsAction(int screenWidth, int screenHeight)
+    {
+        bool keyCurrent = Aion::Input::GetKey(Aion::Key::O) || Aion::Input::GetKey(Aion::Key::Escape);
+        bool keyJustPressed = (keyCurrent && !m_hudOptionsKeyPrev);
+        m_hudOptionsKeyPrev = keyCurrent;
+
+        bool mouseCurrent = Aion::Input::GetMouseButton(Aion::Mouse::ButtonLeft);
+        bool mouseJustClicked = (mouseCurrent && !m_hudOptionsMousePrev);
+        m_hudOptionsMousePrev = mouseCurrent;
+
+        if (keyJustPressed)
+        {
+            return true;
+        }
+
+        if (mouseJustClicked)
+        {
+            float mx = Aion::Input::GetMouseX();
+            float my = Aion::Input::GetMouseY();
+            if (IsMouseOverHUDOptions(mx, my, screenWidth, screenHeight))
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    bool GameOverUI::CheckGameOverOptionsAction(int screenWidth, int screenHeight)
+    {
+        bool keyCurrent = Aion::Input::GetKey(Aion::Key::O);
+        bool keyJustPressed = (keyCurrent && !m_gameOverOptionsKeyPrev);
+        m_gameOverOptionsKeyPrev = keyCurrent;
+
+        bool mouseCurrent = Aion::Input::GetMouseButton(Aion::Mouse::ButtonLeft);
+        bool mouseJustClicked = (mouseCurrent && !m_gameOverOptionsMousePrev);
+        m_gameOverOptionsMousePrev = mouseCurrent;
+
+        if (keyJustPressed)
+        {
+            return true;
+        }
+
+        if (mouseJustClicked)
+        {
+            float mx = Aion::Input::GetMouseX();
+            float my = Aion::Input::GetMouseY();
+            if (IsMouseOverGameOverOptions(mx, my, screenWidth, screenHeight))
+            {
+                return true;
+            }
+        }
+        return false;
     }
 
     bool GameOverUI::CheckRetryAction(int screenWidth, int screenHeight)
@@ -638,6 +730,57 @@ void main()
 
         FlushBatch(m_texFontAtlas, textVerts);
 
+        // 6. Top-Right HUD Options Button
+        float optW = 145.0f * pixelW;
+        float optH = 34.0f * pixelH;
+        float optX1 = 1.0f - 25.0f * pixelW;
+        float optX0 = optX1 - optW;
+        float optY1 = 1.0f - 20.0f * pixelH;
+        float optY0 = optY1 - optH;
+
+        m_hudOptMinX = optX0;
+        m_hudOptMaxX = optX1;
+        m_hudOptMinY = optY0;
+        m_hudOptMaxY = optY1;
+
+        float hmx = Aion::Input::GetMouseX();
+        float hmy = Aion::Input::GetMouseY();
+        bool hudHovered = IsMouseOverHUDOptions(hmx, hmy, screenWidth, screenHeight);
+        bool hudPressed = hudHovered && Aion::Input::GetMouseButton(Aion::Mouse::ButtonLeft);
+
+        std::shared_ptr<Aion::Texture> hudOptTex = m_texBtnNormal;
+        if (hudPressed) hudOptTex = m_texBtnPressed;
+        else if (hudHovered) hudOptTex = m_texBtnHover;
+
+        std::vector<float> optShadowVerts;
+        AddColoredQuad(optX0 + 4.0f * pixelW, optY0 - 4.0f * pixelH,
+                       optX1 + 4.0f * pixelW, optY1 - 4.0f * pixelH,
+                       Aion::Vector4(0.02f, 0.03f, 0.05f, 0.45f), optShadowVerts);
+        FlushBatch(nullptr, optShadowVerts);
+
+        float hudPressOffset = hudPressed ? (-2.0f * pixelH) : 0.0f;
+        std::vector<float> optBtnVerts;
+        Add9Slice(optX0, optY0 + hudPressOffset, optX1, optY1 + hudPressOffset,
+                  18.0f, 384.0f, 128.0f,
+                  Aion::Vector4(1.0f, 1.0f, 1.0f, 0.95f), optBtnVerts,
+                  screenWidth, screenHeight);
+        FlushBatch(hudOptTex ? hudOptTex : m_texWhiteFallback, optBtnVerts);
+
+        std::string optBtnLabel = "OPTIONS [O]";
+        float optLblScale = 0.38f;
+        float optLblW = MeasureKenneyString(optBtnLabel, optLblScale, screenWidth, 1.5f * pixelW);
+        float optLblX = optX0 + (optW - optLblW) * 0.5f;
+        float optLblY = optY0 + 22.0f * pixelH + hudPressOffset;
+
+        std::vector<float> optFontVerts;
+        DrawKenneyString(optBtnLabel, optLblX + 2.0f * pixelW, optLblY - 2.0f * pixelH,
+                         optLblScale, Aion::Vector4(0.04f, 0.15f, 0.08f, 0.90f),
+                         optFontVerts, screenWidth, screenHeight, 1.5f * pixelW);
+        DrawKenneyString(optBtnLabel, optLblX, optLblY,
+                         optLblScale, Aion::Vector4(1.0f, 1.0f, 1.0f, 1.0f),
+                         optFontVerts, screenWidth, screenHeight, 1.5f * pixelW);
+        FlushBatch(m_texFontAtlas, optFontVerts);
+
         Aion::RenderCommand::ApplyState(prevState);
     }
 
@@ -800,17 +943,27 @@ void main()
                          statScale * 0.90f, Aion::Vector4(0.65f, 0.85f, 0.80f, 0.95f * alpha),
                          fontVerts, screenWidth, screenHeight, 1.5f * pixelW);
 
-        // 7. Interactive Kenney Retry Button
-        float btnHalfW = 150.0f * pixelW;
-        float btnHalfH = 34.0f * pixelH;
-        float btnCenterY = cardY0 + 80.0f * pixelH;
-        m_btnMinX = -btnHalfW;
-        m_btnMaxX =  btnHalfW;
+        // 7. Interactive Buttons: RETRY [R] (Left) and OPTIONS [O] (Right)
+        float btnHalfW = 120.0f * pixelW;
+        float btnHalfH = 30.0f * pixelH;
+        float btnCenterY = cardY0 + 78.0f * pixelH;
+
+        float retryCenterX = -135.0f * pixelW;
+        m_btnMinX = retryCenterX - btnHalfW;
+        m_btnMaxX = retryCenterX + btnHalfW;
         m_btnMinY = btnCenterY - btnHalfH;
         m_btnMaxY = btnCenterY + btnHalfH;
 
+        float optCenterX = 135.0f * pixelW;
+        m_goOptMinX = optCenterX - btnHalfW;
+        m_goOptMaxX = optCenterX + btnHalfW;
+        m_goOptMinY = btnCenterY - btnHalfH;
+        m_goOptMaxY = btnCenterY + btnHalfH;
+
         float mx = Aion::Input::GetMouseX();
         float my = Aion::Input::GetMouseY();
+
+        // --- RETRY BUTTON ---
         bool hovered = IsMouseOverButton(mx, my, screenWidth, screenHeight);
         bool pressed = m_buttonPressed || (hovered && Aion::Input::GetMouseButton(Aion::Mouse::ButtonLeft));
 
@@ -855,35 +1008,39 @@ void main()
                                : Aion::Vector4(0.086f, 0.733f, 0.467f, 1.0f * alpha));
         }
 
-        // Button shadow
+        // Retry shadow
         std::vector<float> btnShadowVerts;
-        AddColoredQuad(m_btnMinX + 5.0f * pixelW, m_btnMinY - 5.0f * pixelH,
-                       m_btnMaxX + 5.0f * pixelW, m_btnMaxY - 5.0f * pixelH,
+        AddColoredQuad(m_btnMinX + 4.0f * pixelW, m_btnMinY - 4.0f * pixelH,
+                       m_btnMaxX + 4.0f * pixelW, m_btnMaxY - 4.0f * pixelH,
+                       Aion::Vector4(0.02f, 0.03f, 0.05f, 0.40f * alpha), btnShadowVerts);
+        // Options shadow
+        AddColoredQuad(m_goOptMinX + 4.0f * pixelW, m_goOptMinY - 4.0f * pixelH,
+                       m_goOptMaxX + 4.0f * pixelW, m_goOptMaxY - 4.0f * pixelH,
                        Aion::Vector4(0.02f, 0.03f, 0.05f, 0.40f * alpha), btnShadowVerts);
         FlushBatch(nullptr, btnShadowVerts);
 
-        // 9-Slice Kenney Button (Normal, Hover, or Pressed flat)
+        // Retry button body
         std::vector<float> btnVerts;
-        Add9Slice(m_btnMinX, m_btnMinY + (pressed ? pressYOffset : 0.0f),
-                  m_btnMaxX, m_btnMaxY + (pressed ? pressYOffset : 0.0f),
+        Add9Slice(m_btnMinX, m_btnMinY + pressYOffset,
+                  m_btnMaxX, m_btnMaxY + pressYOffset,
                   20.0f, 384.0f, 128.0f,
                   btnTint, btnVerts, screenWidth, screenHeight);
         FlushBatch(activeBtnTex ? activeBtnTex : m_texWhiteFallback, btnVerts);
 
         // Retry repeat icon on button
         std::vector<float> iconVerts;
-        float iconSize = 28.0f;
+        float iconSize = 24.0f;
         float iconHalfW = (iconSize * 0.5f) * pixelW;
         float iconHalfH = (iconSize * 0.5f) * pixelH;
 
         std::string btnText = "RETRY [R]";
-        float btnTextScale = 0.52f;
+        float btnTextScale = 0.44f;
         float btnTextW = MeasureKenneyString(btnText, btnTextScale, screenWidth, 1.5f * pixelW);
-        float totalBtnContentW = (iconSize + 12.0f) * pixelW + btnTextW;
-        float iconCenterX = -totalBtnContentW * 0.5f + iconHalfW;
-        float btnTextX = iconCenterX + iconHalfW + 12.0f * pixelW;
+        float totalBtnContentW = (iconSize + 10.0f) * pixelW + btnTextW;
+        float iconCenterX = retryCenterX - totalBtnContentW * 0.5f + iconHalfW;
+        float btnTextX = iconCenterX + iconHalfW + 10.0f * pixelW;
         float iconCenterY = btnCenterY + 2.0f * pixelH + pressYOffset;
-        float btnTextY = btnCenterY + 10.0f * pixelH + pressYOffset;
+        float btnTextY = btnCenterY + 9.0f * pixelH + pressYOffset;
 
         if (m_texIconRepeat)
         {
@@ -894,7 +1051,7 @@ void main()
             FlushBatch(m_texIconRepeat, iconVerts);
         }
 
-        // Button text
+        // Retry button text
         DrawKenneyString(btnText, btnTextX + 2.0f * pixelW, btnTextY - 2.0f * pixelH,
                          btnTextScale, Aion::Vector4(0.04f, 0.15f, 0.08f, 0.90f * alpha),
                          fontVerts, screenWidth, screenHeight, 1.5f * pixelW);
@@ -902,8 +1059,37 @@ void main()
                          btnTextScale, Aion::Vector4(1.0f, 1.0f, 1.0f, 1.0f * alpha),
                          fontVerts, screenWidth, screenHeight, 1.5f * pixelW);
 
+        // --- OPTIONS BUTTON ---
+        bool optHovered = IsMouseOverGameOverOptions(mx, my, screenWidth, screenHeight);
+        bool optPressed = optHovered && Aion::Input::GetMouseButton(Aion::Mouse::ButtonLeft);
+        std::shared_ptr<Aion::Texture> optBtnTex = m_texBtnNormal;
+        if (optPressed) optBtnTex = m_texBtnPressed;
+        else if (optHovered) optBtnTex = m_texBtnHover;
+
+        float optPressYOffset = optPressed ? (-3.0f * pixelH) : 0.0f;
+        std::vector<float> optBtnVerts;
+        Add9Slice(m_goOptMinX, m_goOptMinY + optPressYOffset,
+                  m_goOptMaxX, m_goOptMaxY + optPressYOffset,
+                  20.0f, 384.0f, 128.0f,
+                  Aion::Vector4(1.0f, 1.0f, 1.0f, 1.0f * alpha), optBtnVerts,
+                  screenWidth, screenHeight);
+        FlushBatch(optBtnTex ? optBtnTex : m_texWhiteFallback, optBtnVerts);
+
+        std::string optBtnText = "OPTIONS [O]";
+        float optTextScale = 0.44f;
+        float optBtnTextW = MeasureKenneyString(optBtnText, optTextScale, screenWidth, 1.5f * pixelW);
+        float optBtnTextX = optCenterX - optBtnTextW * 0.5f;
+        float optBtnTextY = btnCenterY + 9.0f * pixelH + optPressYOffset;
+
+        DrawKenneyString(optBtnText, optBtnTextX + 2.0f * pixelW, optBtnTextY - 2.0f * pixelH,
+                         optTextScale, Aion::Vector4(0.04f, 0.15f, 0.08f, 0.90f * alpha),
+                         fontVerts, screenWidth, screenHeight, 1.5f * pixelW);
+        DrawKenneyString(optBtnText, optBtnTextX, optBtnTextY,
+                         optTextScale, Aion::Vector4(1.0f, 1.0f, 1.0f, 1.0f * alpha),
+                         fontVerts, screenWidth, screenHeight, 1.5f * pixelW);
+
         // 8. Hint Footer
-        std::string hintText = "PRESS [R] OR [SPACE] TO RETRY";
+        std::string hintText = "PRESS [R] RETRY  |  [O] OPTIONS";
         float hintScale = 0.36f;
         float hintW = MeasureKenneyString(hintText, hintScale, screenWidth, 1.0f * pixelW);
         float hintX = -hintW * 0.5f;

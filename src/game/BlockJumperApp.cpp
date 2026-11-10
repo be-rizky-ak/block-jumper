@@ -10,6 +10,10 @@
 
 #include "Aion/Assets/AssetManager.h"
 #include "Aion/Assets/Image.h"
+#include "Aion/Assets/SVGImporter.h"
+#include "Aion/Audio/AudioClip.h"
+#include "Aion/Audio/AudioSource.h"
+#include "Aion/Audio/AudioSystem.h"
 #include "Aion/Core/Input.h"
 #include "Aion/Core/KeyCodes.h"
 #include "Aion/Core/TaskSystem.h"
@@ -64,12 +68,28 @@ namespace BlockJumper
     BlockJumperApp::~BlockJumperApp()
     {
         std::cout << "[BlockJumperApp] Destructor started." << std::endl;
+        if (m_bgmSource)
+        {
+            m_bgmSource->Stop();
+            m_bgmSource.reset();
+        }
+        m_bgmClip.reset();
         m_gameScene.Shutdown();
         m_loadingScreen.Shutdown();
         m_grassEnvMap.reset();
         m_snowEnvMap.reset();
         m_charModel.reset();
+        Aion::SVGImporter::ClearCache();
         std::cout << "[BlockJumperApp] Destructor completed." << std::endl;
+    }
+
+    void BlockJumperApp::StartBackgroundMusic()
+    {
+        if (m_bgmSource && !m_bgmSource->IsPlaying())
+        {
+            m_bgmSource->Play();
+            std::cout << "[BlockJumperApp] Background music playback started." << std::endl;
+        }
     }
 
     void BlockJumperApp::OnCreate()
@@ -77,6 +97,40 @@ namespace BlockJumper
         std::cout << "========================================" << std::endl;
         std::cout << " Block Jumper - Isometric 2.5D Prototype" << std::endl;
         std::cout << "========================================" << std::endl;
+
+        // Initialize centralized audio configuration and preload BGM
+        m_gameScene.GetSaveManager().Load();
+        float masterVol = m_gameScene.GetSaveManager().GetMasterVolume();
+        float musicVol = m_gameScene.GetSaveManager().GetMusicVolume();
+        float sfxVol = m_gameScene.GetSaveManager().GetSFXVolume();
+
+        Aion::AudioSystem::SetCategoryVolume(Aion::AudioCategory::Master, masterVol);
+        Aion::AudioSystem::SetCategoryVolume(Aion::AudioCategory::Music, musicVol);
+        Aion::AudioSystem::SetCategoryVolume(Aion::AudioCategory::SFX, sfxVol);
+
+        m_config.Audio.MasterVolume = masterVol;
+        m_config.Audio.MusicVolume = musicVol;
+        m_config.Audio.SFXVolume = sfxVol;
+
+        std::cout << "[BlockJumperApp] Audio initialized with persisted volumes (Master: "
+                  << static_cast<int>(std::round(masterVol * 100.0f)) << "%, Music: "
+                  << static_cast<int>(std::round(musicVol * 100.0f)) << "%, SFX: "
+                  << static_cast<int>(std::round(sfxVol * 100.0f)) << "%)." << std::endl;
+
+        std::string bgmPath = ResolveAsset(m_config.Audio.BackgroundMusicPath);
+        std::cout << "[BlockJumperApp] Preloading background music stream: " << bgmPath << std::endl;
+        m_bgmClip = Aion::AudioSystem::LoadClip(bgmPath, Aion::AudioCategory::Music, true);
+        if (m_bgmClip && m_bgmClip->IsValid())
+        {
+            m_bgmSource = std::make_unique<Aion::AudioSource>(m_bgmClip);
+            m_bgmSource->SetLooping(true);
+            m_bgmSource->SetVolume(1.0f);
+            std::cout << "[BlockJumperApp] Background music prepared successfully." << std::endl;
+        }
+        else
+        {
+            std::cerr << "[BlockJumperApp] Warning: Failed to load background music: " << bgmPath << std::endl;
+        }
 
         // Configure polished directional lighting
         if (GetRenderer())
@@ -106,7 +160,7 @@ namespace BlockJumper
         float dt = Aion::Time::GetDeltaTime();
         if (dt > 0.05f)
         {
-            dt = 0.05f; // Clamp delta time to avoid simulation jumps during disk I/O
+            dt = 0.05f;
         }
 
         int winW = 1280;
@@ -230,10 +284,6 @@ namespace BlockJumper
                     GetScene(), m_config, aspect, GetRenderer(),
                     m_grassEnvMap, m_snowEnvMap, m_charModel);
 
-                if (m_gameScene.GetPlayer())
-                {
-                }
-
                 m_loadingProgress = 0.95f;
                 m_loadingStatus = "FINALIZING SCENE...";
                 m_loadingPhase = LoadingPhase::FinalizingScene;
@@ -278,6 +328,7 @@ namespace BlockJumper
             {
                 m_lifecycleState = AppLifecycleState::ActiveGameplay;
                 m_fadeAlpha = 0.0f;
+                StartBackgroundMusic();
                 std::cout << "[StartupLoading] Loading screen fade-out complete. Gameplay active." << std::endl;
                 std::cout << "[BlockJumperApp] Direct Controls:" << std::endl;
                 std::cout << "  - W / Up Arrow:    Move forward relative to camera" << std::endl;
@@ -292,6 +343,10 @@ namespace BlockJumper
         // -------------------------------------------------------------
         // 3. Active Gameplay State
         // -------------------------------------------------------------
+        if (m_bgmSource && !m_bgmSource->IsPlaying() && !m_bgmSource->IsPaused())
+        {
+            m_bgmSource->Play();
+        }
         m_gameScene.Update(dt, winW, winH);
     }
 
@@ -332,11 +387,18 @@ namespace BlockJumper
     void BlockJumperApp::OnDestroy()
     {
         std::cout << "[BlockJumperApp] Shutting down cleanly." << std::endl;
+        if (m_bgmSource)
+        {
+            m_bgmSource->Stop();
+            m_bgmSource.reset();
+        }
+        m_bgmClip.reset();
         m_gameScene.Shutdown();
         m_loadingScreen.Shutdown();
         m_grassEnvMap.reset();
         m_snowEnvMap.reset();
         m_charModel.reset();
     }
+
 } // namespace BlockJumper
 

@@ -42,10 +42,28 @@ namespace BlockJumper
          */
         void SetBestDistance(float distance) { m_bestDistance = distance; }
 
+        // Volume configuration accessors (0.0f to 1.0f range)
+        float GetMasterVolume() const { return m_masterVolume; }
+        float GetMusicVolume() const { return m_musicVolume; }
+        float GetSFXVolume() const { return m_sfxVolume; }
+
+        void SetMasterVolume(float volume) { m_masterVolume = volume; }
+        void SetMusicVolume(float volume) { m_musicVolume = volume; }
+        void SetSFXVolume(float volume) { m_sfxVolume = volume; }
+        void SetVolumeSettings(float master, float music, float sfx)
+        {
+            m_masterVolume = master;
+            m_musicVolume = music;
+            m_sfxVolume = sfx;
+        }
+
         const std::string& GetFilePath() const { return m_filepath; }
 
     private:
         std::string m_filepath = "block_jumper_save.json";
         float m_bestDistance = 0.0f;
+        float m_masterVolume = 1.0f;
+        float m_musicVolume = 0.5f;
+        float m_sfxVolume = 0.8f;
     };
 } // namespace BlockJumper

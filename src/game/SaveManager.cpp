@@ -21,11 +21,16 @@ namespace BlockJumper
 
     bool SaveManager::Load()
     {
+        // Safe defaults
+        m_bestDistance = 0.0f;
+        m_masterVolume = 1.0f;
+        m_musicVolume = 0.5f;
+        m_sfxVolume = 0.8f;
+
         std::ifstream file(m_filepath);
         if (!file.is_open())
         {
-            // Missing file is an expected initial condition: start fresh with 0.0f
-            m_bestDistance = 0.0f;
+            // Missing file is an expected initial condition: start fresh with defaults
             return false;
         }
 
@@ -34,30 +39,58 @@ namespace BlockJumper
             nlohmann::json j;
             file >> j;
 
-            if (j.contains("best_distance"))
+            bool validDistance = false;
+            if (j.contains("best_distance") && j["best_distance"].is_number())
             {
-                if (j["best_distance"].is_number())
+                float dist = j["best_distance"].get<float>();
+                if (std::isfinite(dist) && dist >= 0.0f)
                 {
-                    float dist = j["best_distance"].get<float>();
-                    if (std::isfinite(dist) && dist >= 0.0f)
-                    {
-                        m_bestDistance = dist;
-                        return true;
-                    }
+                    m_bestDistance = dist;
+                    validDistance = true;
                 }
             }
 
-            // Invalid or non-positive value
-            std::cerr << "[SaveManager] Warning: Invalid or corrupted value in " << m_filepath
-                      << ". Resetting best distance to 0.0." << std::endl;
-            m_bestDistance = 0.0f;
-            return false;
+            if (!validDistance && j.contains("best_distance"))
+            {
+                std::cerr << "[SaveManager] Warning: Invalid or corrupted best_distance in " << m_filepath
+                          << ". Resetting best distance to 0.0." << std::endl;
+            }
+
+            // Volume configuration: support flat keys or nested "audio" object
+            auto loadVol = [&j](const std::string& key, const std::string& nestedKey, float defaultVal) -> float {
+                if (j.contains(key) && j[key].is_number())
+                {
+                    float v = j[key].get<float>();
+                    if (std::isfinite(v))
+                    {
+                        return std::clamp(v, 0.0f, 1.0f);
+                    }
+                }
+                if (j.contains("audio") && j["audio"].is_object() && j["audio"].contains(nestedKey) && j["audio"][nestedKey].is_number())
+                {
+                    float v = j["audio"][nestedKey].get<float>();
+                    if (std::isfinite(v))
+                    {
+                        return std::clamp(v, 0.0f, 1.0f);
+                    }
+                }
+                return defaultVal;
+            };
+
+            m_masterVolume = loadVol("master_volume", "master", 1.0f);
+            m_musicVolume = loadVol("music_volume", "music", 0.5f);
+            m_sfxVolume = loadVol("sfx_volume", "sfx", 0.8f);
+
+            return validDistance;
         }
         catch (const std::exception& e)
         {
             std::cerr << "[SaveManager] Warning: Failed to parse save file " << m_filepath
-                      << " (" << e.what() << "). Safely resetting to 0.0." << std::endl;
+                      << " (" << e.what() << "). Safely resetting to defaults." << std::endl;
             m_bestDistance = 0.0f;
+            m_masterVolume = 1.0f;
+            m_musicVolume = 0.5f;
+            m_sfxVolume = 0.8f;
             return false;
         }
     }
@@ -66,8 +99,27 @@ namespace BlockJumper
     {
         try
         {
-            nlohmann::json j;
+            nlohmann::json j = nlohmann::json::object();
+            // Preserve existing unrelated fields if file already exists
+            {
+                std::ifstream existingFile(m_filepath);
+                if (existingFile.is_open())
+                {
+                    try
+                    {
+                        existingFile >> j;
+                    }
+                    catch (...)
+                    {
+                        j = nlohmann::json::object();
+                    }
+                }
+            }
+
             j["best_distance"] = m_bestDistance;
+            j["master_volume"] = m_masterVolume;
+            j["music_volume"] = m_musicVolume;
+            j["sfx_volume"] = m_sfxVolume;
 
             std::ofstream file(m_filepath, std::ios::trunc);
             if (!file.is_open())

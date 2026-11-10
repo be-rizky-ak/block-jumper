@@ -21,6 +21,7 @@ set(BLOCK_JUMPER_SOURCES
     src/ui/GameOverUI.cpp
     src/ui/LoadingScreen.cpp
     src/vfx/VisualEffectsSystem.cpp
+    src/ui/OptionsUI.cpp
 )
 
 set(BLOCK_JUMPER_HEADERS
@@ -39,6 +40,7 @@ set(BLOCK_JUMPER_HEADERS
     src/ui/LoadingScreen.h
     src/ui/KenneyFontAtlas.h
     src/vfx/VisualEffectsSystem.h
+    src/ui/OptionsUI.h
 )
 
 add_executable(BlockJumper

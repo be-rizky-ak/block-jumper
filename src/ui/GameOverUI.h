@@ -44,6 +44,21 @@ namespace BlockJumper
         bool CheckRetryAction(int screenWidth, int screenHeight);
 
         /**
+         * @brief Checks if the Options window action was requested from in-game HUD.
+         */
+        bool CheckHUDOptionsAction(int screenWidth, int screenHeight);
+
+        /**
+         * @brief Checks if the Options window action was requested from Game Over overlay.
+         */
+        bool CheckGameOverOptionsAction(int screenWidth, int screenHeight);
+
+        /**
+         * @brief Resets input tracking states to prevent edge flickers or leaking transitions.
+         */
+        void ResetInputState();
+
+        /**
          * @brief Renders a clean Kenney-styled loading indicator.
          */
         void RenderLoading(
@@ -92,6 +107,8 @@ namespace BlockJumper
          * @brief Tests if given screen coordinates fall inside the Retry button bounds.
          */
         bool IsMouseOverButton(float mouseX, float mouseY, int screenWidth, int screenHeight) const;
+        bool IsMouseOverHUDOptions(float mouseX, float mouseY, int screenWidth, int screenHeight) const;
+        bool IsMouseOverGameOverOptions(float mouseX, float mouseY, int screenWidth, int screenHeight) const;
 
         /**
          * @brief Sets button visual state override for deterministic testing and rendering.
@@ -165,8 +182,23 @@ namespace BlockJumper
         mutable float m_btnMinY = -0.22f;
         mutable float m_btnMaxY = -0.08f;
 
+        mutable float m_hudOptMinX = 0.0f;
+        mutable float m_hudOptMaxX = 0.0f;
+        mutable float m_hudOptMinY = 0.0f;
+        mutable float m_hudOptMaxY = 0.0f;
+
+        mutable float m_goOptMinX = 0.0f;
+        mutable float m_goOptMaxX = 0.0f;
+        mutable float m_goOptMinY = 0.0f;
+        mutable float m_goOptMaxY = 0.0f;
+
         bool m_buttonPressed = false;
         int m_buttonVisualStateOverride = -1;
         float m_gameOverAnimTime = 0.0f;
+
+        bool m_hudOptionsKeyPrev = false;
+        bool m_hudOptionsMousePrev = false;
+        bool m_gameOverOptionsKeyPrev = false;
+        bool m_gameOverOptionsMousePrev = false;
     };
 } // namespace BlockJumper

@@ -25,3 +25,12 @@
 - Source: https://kenney.nl/assets/ui-pack
 - License: See assets/textures/kenney_ui-pack/license.txt
 
+## Kenney Digital Audio
+- Creator: Kenney
+- Source: https://kenney.nl/assets/digital-audio
+- License: See assets/kenney_digital-audio/license.txt
+
+## Cotton Toys by Soundroll
+- Music: 'Cotton Toys' by Soundroll on #Uppbeat
+- Source: https://uppbeat.io/c/soundroll
+- License code: EYND6PRVYS4Y40G7

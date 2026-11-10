@@ -6,6 +6,8 @@
 #include "Aion/Assets/AssetManager.h"
 #include "Aion/Assets/Image.h"
 #include "Aion/Assets/MeshFactory.h"
+#include "Aion/Audio/AudioClip.h"
+#include "Aion/Audio/AudioSystem.h"
 #include "Aion/Core/TaskSystem.h"
 #include "Aion/Importers/ModelImporter.h"
 #include "Aion/Math/Math.h"
@@ -228,9 +230,10 @@ namespace BlockJumper
         scene->SetActiveCamera(cameraComponent);
 
         // -------------------------------------------------------------
-        // 4. Initialize Game Over UI Overlay and Visual Effects System
+        // 4. Initialize Game Over UI Overlay, Options UI, and Visual Effects System
         // -------------------------------------------------------------
         m_gameOverUI.Initialize();
+        m_optionsUI.Initialize();
         m_vfxSystem.Initialize();
         m_stageMilestoneTimer = 0.0f;
         m_lastDifficulty = 1;
@@ -240,6 +243,19 @@ namespace BlockJumper
                   << config.Camera.PitchDegrees << " deg, Yaw="
                   << config.Camera.YawDegrees << " deg, FOV="
                   << config.Camera.Fov << " deg)." << std::endl;
+
+        // -------------------------------------------------------------
+        // 5. Preload Gameplay Sound Effects
+        // -------------------------------------------------------------
+        m_jumpClip = Aion::AudioSystem::LoadClip(resolveAsset(m_config.Audio.JumpSFXPath), Aion::AudioCategory::SFX, false);
+        m_gameOverClip = Aion::AudioSystem::LoadClip(resolveAsset(m_config.Audio.GameOverSFXPath), Aion::AudioCategory::SFX, false);
+        m_retryClip = Aion::AudioSystem::LoadClip(resolveAsset(m_config.Audio.RetrySFXPath), Aion::AudioCategory::SFX, false);
+        m_gameOverSoundPlayed = false;
+        m_optionsUI.SetFeedbackClip(m_retryClip);
+        std::cout << "[GameScene] Audio SFX clips loaded (Jump: " << (m_jumpClip ? "OK" : "FAILED")
+                  << ", GameOver: " << (m_gameOverClip ? "OK" : "FAILED")
+                  << ", Retry: " << (m_retryClip ? "OK" : "FAILED") << ")." << std::endl;
+
         std::cout << "[GameScene] Isometric scene setup complete. Initial state: Playing." << std::endl;
     }
 
@@ -288,6 +304,13 @@ namespace BlockJumper
         // Update and persist best record before presenting final result
         m_isNewRecord = m_saveManager.TryUpdateBestDistance(m_finalRunDistance);
 
+        // Trigger Game Over popup sound effect once
+        if (m_gameOverClip && !m_gameOverSoundPlayed)
+        {
+            Aion::AudioSystem::PlayOneShot(m_gameOverClip, 1.0f);
+            m_gameOverSoundPlayed = true;
+        }
+
         std::cout << "[GameState] Transition: Falling -> GameOver. Simulation frozen cleanly."
                   << " Run distance: " << m_finalRunDistance << "m"
                   << (m_isNewRecord ? " (NEW RECORD!)" : "")
@@ -300,6 +323,11 @@ namespace BlockJumper
         if (m_gameState != GameState::GameOver)
         {
             return; // Disallow retry during Playing or Falling transition
+        }
+
+        if (m_retryClip)
+        {
+            Aion::AudioSystem::PlayOneShot(m_retryClip, 1.0f);
         }
 
         ResetRun();
@@ -318,6 +346,7 @@ namespace BlockJumper
         m_lastDifficulty = 1;
         m_finalRunDistance = 0.0f;
         m_isNewRecord = false;
+        m_gameOverSoundPlayed = false;
         m_retryCount++;
         m_vfxSystem.Reset();
 
@@ -367,6 +396,31 @@ namespace BlockJumper
 
     void GameScene::Update(float deltaTime, int screenWidth, int screenHeight)
     {
+        // 0. Options Window Management
+        if (m_optionsUI.IsOpen())
+        {
+            m_optionsUI.Update(deltaTime, screenWidth, screenHeight);
+            return; // Gameplay and simulation remain completely frozen while Options is open
+        }
+
+        // Check entry points to open Options
+        if (m_gameState == GameState::GameOver)
+        {
+            if (m_gameOverUI.CheckGameOverOptionsAction(screenWidth, screenHeight))
+            {
+                OpenOptions();
+                return;
+            }
+        }
+        else
+        {
+            if (m_gameOverUI.CheckHUDOptionsAction(screenWidth, screenHeight))
+            {
+                OpenOptions();
+                return;
+            }
+        }
+
         if (!m_player)
         {
             return;
@@ -387,6 +441,10 @@ namespace BlockJumper
             if (m_playerController->JustJumped())
             {
                 m_vfxSystem.TriggerJumpDust(feetPos);
+                if (m_jumpClip)
+                {
+                    Aion::AudioSystem::PlayOneShot(m_jumpClip, 1.0f);
+                }
             }
             else if (m_playerController->JustLanded())
             {
@@ -507,11 +565,23 @@ namespace BlockJumper
                 m_levelManager.GetDifficultyStageName(m_levelManager.GetCurrentDifficulty()),
                 m_gameOverDuration);
         }
+
+        // 3. Render Options Window on top if open
+        if (m_optionsUI.IsOpen())
+        {
+            m_optionsUI.Render(windowWidth, windowHeight);
+        }
     }
 
     void GameScene::Shutdown()
     {
+        m_jumpClip.reset();
+        m_gameOverClip.reset();
+        m_retryClip.reset();
+        m_gameOverSoundPlayed = false;
+
         m_gameOverUI.Shutdown();
+        m_optionsUI.Shutdown();
         m_vfxSystem.Shutdown();
         m_grassEnvMap.reset();
         m_snowEnvMap.reset();

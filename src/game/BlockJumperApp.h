@@ -13,6 +13,8 @@
 namespace Aion
 {
     class Model;
+    class AudioClip;
+    class AudioSource;
 }
 
 namespace BlockJumper
@@ -46,12 +48,16 @@ namespace BlockJumper
         void OnRender() override;
         void OnDestroy() override;
 
-        
+        // Accessors for state inspection
+        GameScene& GetGameScene() { return m_gameScene; }
+        const GameScene& GetGameScene() const { return m_gameScene; }
+        AppLifecycleState GetLifecycleState() const { return m_lifecycleState; }
+        float GetLoadingProgress() const { return m_loadingProgress; }
+        float GetFadeAlpha() const { return m_fadeAlpha; }
+        void StartBackgroundMusic();
+        Aion::AudioSource* GetBackgroundMusicSource() const { return m_bgmSource.get(); }
 
-    private:
-        
-
-    private:
+    protected:
         GameConfig m_config;
         GameScene m_gameScene;
         LoadingScreen m_loadingScreen;
@@ -73,6 +79,8 @@ namespace BlockJumper
         std::shared_ptr<Aion::Model> m_charModel;
         std::atomic<bool> m_grassSkyboxReady{false};
 
-        };
+        std::shared_ptr<Aion::AudioClip> m_bgmClip;
+        std::unique_ptr<Aion::AudioSource> m_bgmSource;
+    };
 } // namespace BlockJumper
 

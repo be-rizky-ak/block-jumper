@@ -15,11 +15,13 @@
 #include "player/PlayerAnimationController.h"
 #include "player/PlayerController.h"
 #include "ui/GameOverUI.h"
+#include "ui/OptionsUI.h"
 #include "vfx/VisualEffectsSystem.h"
 
 namespace Aion
 {
     class Model;
+    class AudioClip;
 }
 
 namespace BlockJumper
@@ -93,6 +95,19 @@ namespace BlockJumper
         LevelManager& GetLevelManager() { return m_levelManager; }
         const LevelManager& GetLevelManager() const { return m_levelManager; }
         GameOverUI& GetGameOverUI() { return m_gameOverUI; }
+        OptionsUI& GetOptionsUI() { return m_optionsUI; }
+        const OptionsUI& GetOptionsUI() const { return m_optionsUI; }
+        bool IsOptionsOpen() const { return m_optionsUI.IsOpen(); }
+        void OpenOptions()
+        {
+            m_optionsUI.Open(&m_saveManager);
+            m_gameOverUI.ResetInputState();
+        }
+        void CloseOptions()
+        {
+            m_optionsUI.Close();
+            m_gameOverUI.ResetInputState();
+        }
         VisualEffectsSystem& GetVFXSystem() { return m_vfxSystem; }
         const VisualEffectsSystem& GetVFXSystem() const { return m_vfxSystem; }
 
@@ -107,6 +122,11 @@ namespace BlockJumper
         SkyboxTheme GetCurrentSkyboxTheme() const { return m_currentSkyboxTheme; }
         std::shared_ptr<Aion::EnvironmentMap> GetGrasslandSkybox() const { return m_grassEnvMap; }
         std::shared_ptr<Aion::EnvironmentMap> GetSnowSkybox() const { return m_snowEnvMap; }
+
+        std::shared_ptr<Aion::AudioClip> GetJumpClip() const { return m_jumpClip; }
+        std::shared_ptr<Aion::AudioClip> GetGameOverClip() const { return m_gameOverClip; }
+        std::shared_ptr<Aion::AudioClip> GetRetryClip() const { return m_retryClip; }
+        bool WasGameOverSoundPlayed() const { return m_gameOverSoundPlayed; }
 
     private:
         std::shared_ptr<Aion::Object3D> m_player;
@@ -125,9 +145,15 @@ namespace BlockJumper
 
         GameState m_gameState = GameState::Playing;
         GameOverUI m_gameOverUI;
+        OptionsUI m_optionsUI;
         VisualEffectsSystem m_vfxSystem;
         GameConfig m_config;
         SaveManager m_saveManager;
+
+        std::shared_ptr<Aion::AudioClip> m_jumpClip;
+        std::shared_ptr<Aion::AudioClip> m_gameOverClip;
+        std::shared_ptr<Aion::AudioClip> m_retryClip;
+        bool m_gameOverSoundPlayed = false;
 
         float m_fallTimer = 0.0f;
         float m_gameOverDuration = 0.0f;

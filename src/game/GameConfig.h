@@ -140,6 +140,23 @@ namespace BlockJumper
     };
 
     /**
+     * @brief Centralized audio parameters and asset path configuration.
+     */
+    struct AudioConfig
+    {
+        // Default category volume levels
+        float MasterVolume = 1.0f;
+        float MusicVolume = 0.5f;
+        float SFXVolume = 0.8f;
+
+        // Supplied audio asset paths
+        const char* JumpSFXPath = "assets/audio/kenney_digital-audio/audio/phaserUp1.ogg";
+        const char* GameOverSFXPath = "assets/audio/kenney_digital-audio/audio/threeTone1.ogg";
+        const char* RetrySFXPath = "assets/audio/kenney_digital-audio/audio/tone1.ogg";
+        const char* BackgroundMusicPath = "assets/audio/cotton_toys_by_soundroll/cotton-toys-soundroll-main-version-16753-01-17.mp3";
+    };
+
+    /**
      * @brief Complete game configuration.
      */
     struct GameConfig
@@ -148,6 +165,7 @@ namespace BlockJumper
         CameraConfig Camera;
         EndlessConfig Endless;
         DifficultyConfig Difficulty;
+        AudioConfig Audio;
 
         static std::vector<PlatformBox> CreateDefaultLevel()
         {
