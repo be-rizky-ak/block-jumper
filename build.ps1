@@ -10,6 +10,7 @@ param (
     [ValidateSet("Release", "Debug")]
     [string]$BuildConfig = "Release",
 
+    [Alias("SdkDir")]
     [string]$SdkPath = $env:AION_SDK_DIR,
 
     [switch]$Clean,
@@ -28,6 +29,111 @@ $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 Set-Location $ScriptDir
 
 $BuildDir = Join-Path $ScriptDir "build"
+
+# Discover SDK root if not explicitly provided
+if ([string]::IsNullOrWhiteSpace($SdkPath)) {
+    $sdkCandidates = @(
+        $env:AION_SDK_DIR,
+        (Join-Path $ScriptDir "..\..\aion\dist\sdk\AionSDK"),
+        (Join-Path $ScriptDir "..\..\..\aion\dist\sdk\AionSDK"),
+        (Join-Path $ScriptDir "..\..\dist\sdk\AionSDK"),
+        "C:\AionSDK",
+        (Join-Path $env:USERPROFILE "AionSDK"),
+        # Legacy paths for fallback compatibility
+        (Join-Path $ScriptDir "..\..\aion\dist\AionSDK"),
+        (Join-Path $ScriptDir "..\..\..\aion\dist\AionSDK"),
+        (Join-Path $ScriptDir "..\..\dist\AionSDK"),
+        (Join-Path $ScriptDir "..\..\aion\dist\sdk\Release\AionSDK")
+    )
+
+    foreach ($cand in $sdkCandidates) {
+        if ($cand -and (Test-Path $cand)) {
+            $winDir = Join-Path $cand "Windows"
+            $rootConfig = Join-Path $cand "AionEngineConfig.cmake"
+            $rootSdkConfig = Join-Path $cand "AionSDKConfig.cmake"
+            if ((Test-Path $winDir) -or (Test-Path $rootConfig) -or (Test-Path $rootSdkConfig)) {
+                $SdkPath = (Resolve-Path $cand).Path
+                break
+            } elseif (Test-Path (Join-Path $cand "lib\cmake\AionEngine\AionEngineConfig.cmake")) {
+                $SdkPath = (Resolve-Path $cand).Path
+                break
+            }
+        }
+    }
+}
+
+# Validate SDK path and ensure platform distribution is available
+if ($SdkPath) {
+    if (-not (Test-Path $SdkPath)) {
+        Write-Error "Provided Aion SDK path does not exist: $SdkPath"
+        exit 1
+    }
+
+    $isUnifiedRoot = $false
+    if ((Test-Path (Join-Path $SdkPath "AionEngineConfig.cmake")) -or
+        (Test-Path (Join-Path $SdkPath "AionSDKConfig.cmake")) -or
+        ((Test-Path (Join-Path $SdkPath "Windows")) -and (Test-Path (Join-Path $SdkPath "Web")))) {
+        $isUnifiedRoot = $true
+    }
+
+    if ($isUnifiedRoot) {
+        $winDir = Join-Path $SdkPath "Windows"
+        if (-not (Test-Path $winDir)) {
+            Write-Error @"
+===================================================
+[ERROR] Missing Windows Platform Distribution in Unified SDK!
+===================================================
+The unified Aion SDK located at '$SdkPath' does not contain the 'Windows' platform distribution.
+The current build targets native Windows.
+
+Actionable Guidance:
+  1. Run package.bat in the Aion repository to generate the Windows distribution.
+  2. Rebuild Block Jumper using the unified SDK root:
+       .\build.ps1 -SdkPath $SdkPath
+===================================================
+"@
+            exit 1
+        }
+    } else {
+        if (Test-Path (Join-Path $SdkPath "lib\cmake\AionEngine\Web.cmake")) {
+            Write-Error @"
+===================================================
+[ERROR] Incompatible Aion SDK Distribution Detected!
+===================================================
+The SDK located at '$SdkPath' is a WebAssembly distribution.
+The current build targets native Windows.
+
+Actionable Guidance:
+  1. Specify the unified Aion SDK root:
+       .\build.ps1 -SdkPath path\to\AionSDK
+===================================================
+"@
+            exit 1
+        }
+        $versionFile = Join-Path $SdkPath "lib\cmake\AionEngine\AionEngineConfigVersion.cmake"
+        if (Test-Path $versionFile) {
+            $verContent = Get-Content $versionFile -Raw -ErrorAction SilentlyContinue
+            if ($verContent -match "_AION_SDK_IS_WEB\s+1") {
+                Write-Error @"
+===================================================
+[ERROR] Incompatible Aion SDK Distribution Detected!
+===================================================
+The SDK located at '$SdkPath' is a WebAssembly distribution.
+The current build targets native Windows.
+
+Actionable Guidance:
+  1. Specify the unified Aion SDK root:
+       .\build.ps1 -SdkPath path\to\AionSDK
+===================================================
+"@
+                exit 1
+            }
+        }
+        Write-Warning "[DEPRECATION NOTICE] You passed a platform-specific SDK path: '$SdkPath'."
+        Write-Warning "Please migrate to specifying the unified SDK root (e.g. -SdkPath path\to\AionSDK)."
+        Write-Warning "Proceeding using backward-compatibility path..."
+    }
+}
 
 Write-Host "===================================================" -ForegroundColor Cyan
 Write-Host " Block Jumper Windows Build Workflow (PowerShell)" -ForegroundColor Cyan
@@ -58,6 +164,11 @@ if ($SdkPath) {
     $CMakeArgs += "-DCMAKE_PREFIX_PATH=$SdkPath"
 }
 $CMakeArgs += "-DCMAKE_BUILD_TYPE=$BuildConfig"
+if ($BuildConfig -eq "Release" -or $BuildConfig -eq "RelWithDebInfo" -or $BuildConfig -eq "MinSizeRel") {
+    $CMakeArgs += "-DAION_ENABLE_CONSOLE_LOG=OFF"
+} else {
+    $CMakeArgs += "-DAION_ENABLE_CONSOLE_LOG=ON"
+}
 
 Write-Host "[BUILD] Configuring CMake..." -ForegroundColor Green
 & cmake @CMakeArgs

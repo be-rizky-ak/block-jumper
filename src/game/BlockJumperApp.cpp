@@ -23,44 +23,16 @@
 #include "Aion/Renderer/RenderCommand.h"
 #include "Aion/Renderer/Renderer.h"
 #include "ui/LoadingScreen.h"
+#include "ResourcePath.h"
 
 namespace BlockJumper
 {
-    namespace
-    {
-        std::string ResolveAsset(const std::string& path)
-        {
-            const std::vector<std::string> prefixes = {
-                "",
-                "games/BlockJumper/",
-                "assets/",
-                "build/games/BlockJumper/",
-                "../",
-                "../games/BlockJumper/",
-                "../../games/BlockJumper/",
-                "prorotype-stagging/games/BlockJumper/",
-                "../prorotype-stagging/games/BlockJumper/",
-                "block-jumper-stagging/",
-            };
-
-            for (const auto& prefix : prefixes)
-            {
-                std::string candidate = prefix + path;
-                if (std::filesystem::exists(candidate))
-                {
-                    return candidate;
-                }
-            }
-            return path;
-        }
-    } // namespace
-
     BlockJumperApp::BlockJumperApp()
         : Aion::Application(Aion::ApplicationSpecification{
-            .Name = "Block Jumper - Isometric 2.5D",
-            .Width = 1280,
-            .Height = 720,
-            .VSync = true
+            .Name = GameConfig::DefaultWindow.Title,
+            .Width = GameConfig::DefaultWindow.Width,
+            .Height = GameConfig::DefaultWindow.Height,
+            .VSync = GameConfig::DefaultWindow.VSync
         })
     {
     }
@@ -95,8 +67,26 @@ namespace BlockJumper
     void BlockJumperApp::OnCreate()
     {
         std::cout << "========================================" << std::endl;
-        std::cout << " Block Jumper - Isometric 2.5D Prototype" << std::endl;
+        std::cout << " Block Jumper - Isometric 2.5D Showcase" << std::endl;
         std::cout << "========================================" << std::endl;
+
+        // 1. Validate Window, OpenGL Context, and Graphics Subsystem
+        if (!IsRunning() || !GetWindow() || !GetWindow()->IsValid() || !GetRenderer())
+        {
+            std::cerr << "[BlockJumperApp] Critical Error: Application failed to initialize window, OpenGL context, or renderer." << std::endl;
+            std::cerr << "[BlockJumperApp] Actionable Requirement: Ensure an OpenGL 3.3 Core Profile compatible GPU and an active display server are available." << std::endl;
+            m_lifecycleState = AppLifecycleState::StartupLoading;
+            m_loadingPhase = LoadingPhase::Failed;
+            m_loadingFailed = true;
+            m_errorMessage = "OPENGL CONTEXT INITIALIZATION FAILED";
+            return;
+        }
+
+        // 2. Validate Audio Subsystem
+        if (!Aion::AudioSystem::IsInitialized())
+        {
+            std::cerr << "[BlockJumperApp] Warning: Audio subsystem is uninitialized. Running in silent audio mode." << std::endl;
+        }
 
         // Initialize centralized audio configuration and preload BGM
         m_gameScene.GetSaveManager().Load();
@@ -135,11 +125,11 @@ namespace BlockJumper
         // Configure polished directional lighting
         if (GetRenderer())
         {
-            GetRenderer()->SetLightDirection(Aion::Vector3(0.55f, 0.80f, 0.25f).Normalized());
-            GetRenderer()->SetLightColor(Aion::Vector3(2.2f, 2.15f, 2.05f));
-            GetRenderer()->SetAmbientColor(Aion::Vector3(0.28f, 0.29f, 0.34f));
-            GetRenderer()->SetShadowsEnabled(true);
-            GetRenderer()->SetShadowBias(0.0025f, 0.0005f);
+            GetRenderer()->SetLightDirection(m_config.Rendering.LightDirection.Normalized());
+            GetRenderer()->SetLightColor(m_config.Rendering.LightColor);
+            GetRenderer()->SetAmbientColor(m_config.Rendering.AmbientColor);
+            GetRenderer()->SetShadowsEnabled(m_config.Rendering.ShadowsEnabled);
+            GetRenderer()->SetShadowBias(m_config.Rendering.ShadowBiasMax, m_config.Rendering.ShadowBiasMin);
         }
 
         // Initialize dedicated full-screen startup loading presentation layer
@@ -201,8 +191,8 @@ namespace BlockJumper
                 m_loadingProgress = 0.20f;
                 m_loadingPhase = LoadingPhase::LoadingSkybox;
 
-                std::string grassSkyPath = ResolveAsset("assets/textures/kenney_skyboxes/skyboxes/skybox-day.png");
-                std::string snowSkyPath = ResolveAsset("assets/textures/kenney_skyboxes/skyboxes/skybox-morning.png");
+                std::string grassSkyPath = ResolveAsset(m_config.Rendering.GrassSkyboxPath);
+                std::string snowSkyPath = ResolveAsset(m_config.Rendering.SnowSkyboxPath);
 
                 std::cout << "[StartupLoading] Asynchronously loading required Grassland skybox: " << grassSkyPath << std::endl;
 
@@ -260,8 +250,7 @@ namespace BlockJumper
             }
             else if (m_loadingPhase == LoadingPhase::LoadingCharacter)
             {
-                std::string rawCharPath = "assets/models/kenney_mini-characters/models/character-male-a.glb";
-                std::string charPath = ResolveAsset(rawCharPath);
+                std::string charPath = ResolveAsset(m_config.Rendering.CharacterModelPath);
                 std::cout << "[StartupLoading] Loading Kenney 3D character: " << charPath << std::endl;
                 m_charModel = Aion::AssetManager::LoadModel(charPath);
 

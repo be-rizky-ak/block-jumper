@@ -1,0 +1,379 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Block Jumper - Official Aion Engine SDK Showcase</title>
+    <link rel="icon" href="data:,">
+    <style>
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+      html, body {
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+        background-color: #0b0c10;
+        color: #e2e8f0;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, "Helvetica Neue", Arial, sans-serif;
+        user-select: none;
+        -webkit-user-select: none;
+      }
+      #game-container {
+        position: relative;
+        width: 100%;
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        background: radial-gradient(circle at center, #131722 0%, #08090c 100%);
+      }
+      #canvas-wrapper {
+        position: relative;
+        width: 100%;
+        height: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 8px;
+      }
+      canvas.emscripten {
+        display: block;
+        max-width: 100%;
+        max-height: 100%;
+        width: auto;
+        height: auto;
+        aspect-ratio: 16 / 9;
+        object-fit: contain;
+        background-color: #000000;
+        outline: none;
+        box-shadow: 0 12px 36px rgba(0, 0, 0, 0.7);
+        border-radius: 4px;
+        cursor: default;
+      }
+      /* Polished Loading Overlay */
+      #loading-overlay {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: radial-gradient(circle at center, #1b2434 0%, #0a0d14 100%);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        z-index: 100;
+        transition: opacity 0.5s cubic-bezier(0.4, 0, 0.2, 1), visibility 0.5s ease;
+      }
+      #loading-overlay.hidden {
+        opacity: 0;
+        visibility: hidden;
+        pointer-events: none;
+      }
+      .brand-title {
+        font-size: 2.25rem;
+        font-weight: 800;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        margin-bottom: 0.4rem;
+        color: #38bdf8;
+        text-shadow: 0 2px 14px rgba(56, 189, 248, 0.45);
+      }
+      .brand-subtitle {
+        font-size: 0.85rem;
+        font-weight: 600;
+        letter-spacing: 0.2em;
+        text-transform: uppercase;
+        color: #94a3b8;
+        margin-bottom: 2rem;
+      }
+      .spinner {
+        width: 52px;
+        height: 52px;
+        border: 4px solid rgba(56, 189, 248, 0.18);
+        border-top-color: #38bdf8;
+        border-radius: 50%;
+        animation: bj-spin 0.85s linear infinite;
+        margin-bottom: 1.5rem;
+      }
+      @keyframes bj-spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+      }
+      #status-text {
+        font-size: 0.95rem;
+        color: #cbd5e1;
+        margin-bottom: 0.85rem;
+        min-height: 1.25rem;
+      }
+      .progress-bar-container {
+        width: 280px;
+        height: 8px;
+        background: rgba(15, 23, 42, 0.8);
+        border: 1px solid rgba(148, 163, 184, 0.25);
+        border-radius: 4px;
+        overflow: hidden;
+        margin-bottom: 1.25rem;
+      }
+      #progress-bar {
+        width: 0%;
+        height: 100%;
+        background: linear-gradient(90deg, #0284c7 0%, #38bdf8 100%);
+        transition: width 0.2s ease-out;
+      }
+      .audio-hint {
+        font-size: 0.8rem;
+        color: #64748b;
+        letter-spacing: 0.05em;
+      }
+      /* Toolbar Controls */
+      #controls-toolbar {
+        position: absolute;
+        bottom: 14px;
+        right: 14px;
+        display: flex;
+        gap: 8px;
+        z-index: 10;
+      }
+      .btn {
+        background: rgba(30, 41, 59, 0.85);
+        color: #f1f5f9;
+        border: 1px solid rgba(148, 163, 184, 0.25);
+        padding: 7px 14px;
+        border-radius: 6px;
+        cursor: pointer;
+        font-size: 0.85rem;
+        font-weight: 600;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        backdrop-filter: blur(8px);
+        transition: background 0.15s ease, border-color 0.15s ease, transform 0.1s ease;
+      }
+      .btn:hover {
+        background: rgba(51, 65, 85, 0.95);
+        border-color: #38bdf8;
+      }
+      .btn:active {
+        transform: scale(0.97);
+      }
+      /* Error Modal */
+      #error-modal {
+        display: none;
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        background: #1e293b;
+        border: 1px solid #ef4444;
+        border-radius: 8px;
+        padding: 24px;
+        max-width: 480px;
+        width: 90%;
+        box-shadow: 0 20px 40px rgba(0, 0, 0, 0.8);
+        z-index: 200;
+        text-align: center;
+      }
+      #error-modal h2 {
+        color: #ef4444;
+        margin-bottom: 12px;
+        font-size: 1.25rem;
+      }
+      #error-modal p {
+        color: #cbd5e1;
+        font-size: 0.9rem;
+        line-height: 1.5;
+        margin-bottom: 16px;
+      }
+      #error-modal button {
+        background: #ef4444;
+        color: #ffffff;
+        border: none;
+        padding: 8px 16px;
+        border-radius: 4px;
+        cursor: pointer;
+        font-weight: 600;
+      }
+      #error-modal button:hover {
+        background: #dc2626;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="game-container">
+      <div id="loading-overlay">
+        <div class="brand-title">Block Jumper</div>
+        <div class="brand-subtitle">Official Aion Engine SDK Showcase</div>
+        <div class="spinner" id="spinner"></div>
+        <div id="status-text">Loading WebAssembly & Assets...</div>
+        <div class="progress-bar-container">
+          <div id="progress-bar"></div>
+        </div>
+        <div class="audio-hint">Click anywhere to play with audio enabled</div>
+      </div>
+
+      <div id="error-modal">
+        <h2 id="error-title">Initialization Error</h2>
+        <p id="error-message">An error occurred while loading the game.</p>
+        <button onclick="location.reload()">Reload</button>
+      </div>
+
+      <div id="canvas-wrapper">
+        <canvas class="emscripten" id="canvas" oncontextmenu="event.preventDefault()" tabindex="0"></canvas>
+      </div>
+
+      <div id="controls-toolbar">
+        <button class="btn" id="fullscreen-btn" title="Toggle Fullscreen">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/>
+          </svg>
+          Fullscreen
+        </button>
+      </div>
+    </div>
+
+    <script type="text/javascript">
+      // Audio Autoplay Policy Handler: Resume suspended AudioContext upon user gesture
+      const activeAudioContexts = [];
+      const NativeAudioContext = window.AudioContext || window.webkitAudioContext;
+      if (NativeAudioContext) {
+        window.AudioContext = function() {
+          const ctx = new NativeAudioContext(...arguments);
+          activeAudioContexts.push(ctx);
+          return ctx;
+        };
+        window.AudioContext.prototype = NativeAudioContext.prototype;
+      }
+
+      function unlockAudioContexts() {
+        activeAudioContexts.forEach(function(ctx) {
+          if (ctx && ctx.state === 'suspended') {
+            ctx.resume().catch(function() {});
+          }
+        });
+      }
+      window.addEventListener('click', unlockAudioContexts, { passive: true });
+      window.addEventListener('keydown', unlockAudioContexts, { passive: true });
+      window.addEventListener('touchstart', unlockAudioContexts, { passive: true });
+      window.addEventListener('pointerdown', unlockAudioContexts, { passive: true });
+
+      // Capability Detection
+      function showError(title, message) {
+        var modal = document.getElementById('error-modal');
+        var overlay = document.getElementById('loading-overlay');
+        if (overlay) overlay.classList.add('hidden');
+        if (modal) {
+          document.getElementById('error-title').textContent = title;
+          document.getElementById('error-message').textContent = message;
+          modal.style.display = 'block';
+        }
+      }
+
+      function checkBrowserCapabilities() {
+        if (typeof WebAssembly !== 'object' || typeof WebAssembly.instantiate !== 'function') {
+          showError('WebAssembly Not Supported', 'Your browser does not support WebAssembly, which is required to run Block Jumper.');
+          return false;
+        }
+        var testCanvas = document.createElement('canvas');
+        var gl2 = window.WebGL2RenderingContext && testCanvas.getContext('webgl2');
+        if (!gl2) {
+          showError('WebGL 2 Not Supported', 'WebGL 2 is required to play Block Jumper, but is disabled or unsupported by your browser or graphics driver. Please verify that hardware acceleration is enabled in your browser settings.');
+          return false;
+        }
+        return true;
+      }
+
+      checkBrowserCapabilities();
+
+      var statusText = document.getElementById('status-text');
+      var progressBar = document.getElementById('progress-bar');
+      var loadingOverlay = document.getElementById('loading-overlay');
+      var canvas = document.getElementById('canvas');
+
+      // Click on canvas automatically focuses it for keyboard gameplay
+      if (canvas) {
+        canvas.addEventListener('click', function() {
+          canvas.focus();
+        });
+      }
+
+      // Prevent browser default scrolling behavior on game keys (Space, Arrow keys) when canvas or body is active
+      window.addEventListener('keydown', function(e) {
+        var gameKeys = ['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'];
+        if (gameKeys.indexOf(e.code) > -1) {
+          if (document.activeElement === canvas || document.activeElement === document.body) {
+            e.preventDefault();
+          }
+        }
+      }, false);
+
+      // Fullscreen handling
+      var fullscreenBtn = document.getElementById('fullscreen-btn');
+      if (fullscreenBtn) {
+        fullscreenBtn.addEventListener('click', function() {
+          if (!document.fullscreenElement && !document.webkitFullscreenElement) {
+            var container = document.getElementById('game-container');
+            if (container.requestFullscreen) {
+              container.requestFullscreen();
+            } else if (container.webkitRequestFullscreen) {
+              container.webkitRequestFullscreen();
+            }
+          } else {
+            if (document.exitFullscreen) {
+              document.exitFullscreen();
+            } else if (document.webkitExitFullscreen) {
+              document.webkitExitFullscreen();
+            }
+          }
+        });
+      }
+
+      var Module = {
+        print: function(text) { console.log(text); },
+        printErr: function(text) { console.error(text); },
+        canvas: (function() {
+          if (!canvas) canvas = document.getElementById('canvas');
+          canvas.addEventListener('webglcontextlost', function(e) {
+            showError('WebGL Context Lost', 'The graphics context was lost. Please reload the page to restart Block Jumper.');
+            e.preventDefault();
+          }, false);
+          return canvas;
+        })(),
+        setStatus: function(text) {
+          if (!text) {
+            if (loadingOverlay) loadingOverlay.classList.add('hidden');
+            return;
+          }
+          if (statusText) statusText.textContent = text;
+          var m = text.match(/([^(]+)\((\d+(\.\d+)?)\/(\d+)\)/);
+          if (m && progressBar) {
+            var percent = (parseFloat(m[2]) / parseFloat(m[4])) * 100;
+            progressBar.style.width = Math.min(Math.max(percent, 0), 100) + '%';
+          }
+        },
+        totalDependencies: 0,
+        monitorRunDependencies: function(left) {
+          this.totalDependencies = Math.max(this.totalDependencies, left);
+          Module.setStatus(left ? 'Downloading resources (' + (this.totalDependencies - left) + '/' + this.totalDependencies + ')...' : '');
+        },
+        onRuntimeInitialized: function() {
+          if (loadingOverlay) {
+            loadingOverlay.classList.add('hidden');
+          }
+          if (canvas) {
+            canvas.focus();
+          }
+        }
+      };
+
+      window.onerror = function(event) {
+        console.error('[BlockJumper Error]', event);
+      };
+    </script>
+    {{{ SCRIPT }}}
+  </body>
+</html>

@@ -43,6 +43,7 @@ Traverse an endless series of floating platforms that dynamically scale in diffi
 BlockJumper/
 ├── CMakeLists.txt              # Standard CMake build script consuming public Aion SDK
 ├── README.md                   # Project documentation, build and run guide
+├── ROADMAP.md                  # Milestone and feature roadmap
 ├── LICENSE                     # MIT License
 ├── THIRD-PARTY-NOTICES.md      # Third-party asset credits and CC0 notices
 ├── assets/                     # Packaged runtime assets
@@ -50,27 +51,54 @@ BlockJumper/
 │   ├── models/                 # 3D models (GLB) for character, platforms, decorations
 │   ├── shaders/                # Standard PBR shaders (copied during build)
 │   └── textures/               # Skybox panoramas (PNG) and UI vector assets (SVG/PNG)
-├── src/                        # Production game source code
-│   ├── main.cpp                # Entry point, CLI parser, context validation
-│   ├── camera/                 # FollowCamera system
-│   ├── game/                   # App lifecycle, GameScene, LevelManager, ResourcePath, Config
-│   ├── player/                 # PlayerController, Collider, AnimationController
-│   ├── ui/                     # GameOverUI, OptionsUI, LoadingScreen
-│   └── vfx/                    # VisualEffectsSystem
+└── src/                        # Production game source code
+    ├── main.cpp                # Entry point, CLI parser, context validation
+    ├── camera/                 # FollowCamera system
+    ├── game/                   # App lifecycle, GameScene, LevelManager, ResourcePath, Config
+    ├── player/                 # PlayerController, Collider, AnimationController
+    ├── ui/                     # GameOverUI, OptionsUI, LoadingScreen
+    └── vfx/                    # VisualEffectsSystem
 ```
 
 ---
 
 ## Prerequisites
 
-- **Operating System:** Windows 10/11 (64-bit).
-- **C++ Compiler:** C++20 compliant compiler:
-  - GCC 11 or newer (GCC 13 tested)
-  - Clang 14 or newer (Clang 18 tested)
-  - MSVC from Visual Studio 2019 / 2022 (`/std:c++20`)
+### Native Desktop Development (Windows & Linux)
+- **Operating System:** Windows 10/11 (64-bit) or Linux (Ubuntu 20.04+, Debian 11+, Fedora 36+, Arch).
+- **C++ Compiler:** Standard C++20 compliant compiler:
+  - MSVC from Visual Studio 2019 / 2022 (`/std:c++20`) on Windows.
+  - GCC 11 or newer (GCC 13 tested) on Linux.
+  - Clang 14 or newer on Linux.
 - **Build System:** CMake 3.16 or newer.
 - **Graphics:** GPU and driver supporting **OpenGL 3.3 Core Profile** (or higher).
-- **Aion Engine SDK:** Pre-built public Aion Engine SDK package (`AionSDK`).
+- **Aion Engine SDK:** Pre-built native Aion Engine SDK 1.2.0 package (`AionSDK`).
+- *Neither Emscripten nor Ninja is required for native desktop development.*
+
+### Optional Web Build Development Tools (WebAssembly & WebGL 2)
+Required **only** when explicitly building or exporting the Web target:
+- **Emscripten SDK (`emsdk`):** Supported versions **3.1.50 through 3.1.64+**.
+  - Windows: Clone to `$env:USERPROFILE\emsdk`, run `.\emsdk.bat install 3.1.64` and `.\emsdk.bat activate 3.1.64`.
+  - Linux/macOS: Clone to `~/emsdk`, run `./emsdk install 3.1.64` and `./emsdk activate 3.1.64`.
+- **Ninja:** High-performance build generator required for Emscripten builds (`-G Ninja`).
+  - Windows: `winget install Ninja-multiconfig.Ninja`, `choco install ninja`, or Visual Studio CMake tools.
+  - Linux: `sudo apt-get install ninja-build` (Debian/Ubuntu) or `sudo dnf install ninja-build` (Fedora).
+  - macOS: `brew install ninja`.
+
+---
+
+## Player Requirements (Web Build)
+
+To play the browser-based WebGL 2 export, players only need:
+- **A modern web browser with WebGL 2 support** (e.g. Google Chrome, Microsoft Edge, Mozilla Firefox, or Safari 15+).
+- **An active internet connection** (or local network connection) to download the hosted game.
+
+**Players do NOT need:**
+- Emscripten or Ninja
+- CMake or build tools
+- A C++ compiler
+- The Aion Engine SDK
+- The source code repository
 
 ---
 
@@ -92,24 +120,120 @@ You can provide the path to your Aion SDK installation using any of the followin
    Set `AION_SDK_DIR` in your environment:
    ```bash
    export AION_SDK_DIR="/opt/AionSDK"
-   # On Windows: setx AION_SDK_DIR "C:\AionSDK"
+   # On Windows PowerShell:
+   # $env:AION_SDK_DIR = "C:\AionSDK"
    ```
 
 ---
 
 ## Building Block Jumper
 
-### Windows (MSVC)
+### 1. Native Windows Build (MSVC)
+
+Native Windows development does not require Emscripten, Ninja, or any Web tools.
 
 ```cmd
 cmake -S . -B build -A x64 -DCMAKE_PREFIX_PATH="C:/AionSDK"
 cmake --build build --config Release
 ```
 
-Or run the provided `build.bat` / `build.ps1` helper scripts:
-```cmd
+Or run the provided PowerShell / batch build entry points:
+```powershell
+# PowerShell
+.\build.ps1 -BuildConfig Release -SdkPath C:\AionSDK
+
+# Command Prompt
 build.bat Release --sdk-path C:\AionSDK
 ```
+
+The resulting executable will be placed in `build\Release\BlockJumper.exe` (or `build\BlockJumper.exe`).
+
+### 2. Native Linux Build (GCC or Clang)
+
+```bash
+# Using GCC
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH="/path/to/AionSDK"
+cmake --build build -j$(nproc)
+
+# Using Clang
+CC=clang CXX=clang++ cmake -S . -B build-clang -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH="/path/to/AionSDK"
+cmake --build build-clang -j$(nproc)
+```
+
+### 3. WebAssembly & WebGL 2 Web Build
+
+Block Jumper can be compiled to a standalone WebAssembly/WebGL 2 web application using the official Aion SDK toolchain. Both native and Web builds consume the same **unified Aion SDK root** (`AionSDK`), with target platform selection handled internally:
+- Native builds automatically select the `Windows` distribution.
+- WebAssembly builds automatically select the `Web` distribution.
+
+#### On Windows (PowerShell)
+
+Ensure the Emscripten SDK and Ninja are installed, then run:
+
+```powershell
+# Build in Release mode (auto-discovers unified Aion SDK root):
+.\build_web.ps1
+
+# Specify explicit unified SDK root (same path used for native build.bat / build.ps1):
+.\build_web.ps1 -SdkPath "C:\Development\AionSDK"
+
+# Clean rebuild:
+.\build_web.ps1 -Clean
+
+# Export to custom directory:
+.\build_web.ps1 -ExportDir "dist\web"
+```
+
+#### On Linux / macOS (Bash)
+
+```bash
+# Activate Emscripten SDK:
+source ~/emsdk/emsdk_env.sh
+
+# Build Release web target (auto-discovers unified Aion SDK root):
+./build_web.sh
+
+# Build with explicit unified SDK root (same path used for native CMake):
+./build_web.sh -SdkPath /path/to/aion/dist/sdk/AionSDK
+
+# Clean build:
+./build_web.sh --clean
+```
+
+#### Web Export Directory Structure
+
+The ready-to-host web application is isolated in `build_web/export/` (or your custom `-ExportDir`):
+
+```text
+build_web/export/
+├── index.html            # Responsive HTML5 entry point with 16:9 canvas and audio unlock
+├── BlockJumper.html      # Direct named entry point
+├── BlockJumper.js        # Emscripten JavaScript runtime glue and loader
+├── BlockJumper.wasm      # Compiled WebAssembly binary
+├── BlockJumper.data      # Preloaded Virtual File System assets (models, textures, audio, shaders)
+└── export_manifest.json  # Provenance manifest with SHA-256 artifact checksums
+```
+
+#### Testing the Web Build Locally
+
+Due to browser security and Cross-Origin policies, WebAssembly cannot run directly from the local file system (`file://`). Serve the export folder with a local HTTP server:
+
+```bash
+# Using Python 3:
+python3 -m http.server 8080 --directory build_web/export
+
+# Or on Windows PowerShell:
+python -m http.server 8080 --directory "build_web\export"
+```
+
+Then open `http://localhost:8080/` in any modern web browser.
+
+#### Deploying to Static Hosting
+
+- **Static Hosting Providers:** Upload the entire contents of `build_web/export/` to any static web hosting provider (such as GitHub Pages, Netlify, Vercel, AWS S3 / CloudFront, Cloudflare Pages, Apache, or Nginx).
+- **Subdirectory Hosting:** All scripts and asset references use relative paths. Hosting from subdirectories (e.g., `https://example.com/games/block-jumper/`) works out of the box without URL rewriting.
+- **Server MIME Types:** Ensure the web server serves `.wasm` with `application/wasm` and `.data` with `application/octet-stream`. Modern static hosting providers handle this automatically.
+- **No Special Headers Required:** The game runs in single-threaded WebAssembly mode without `SharedArrayBuffer` or pthreads, so no `Cross-Origin-Opener-Policy` (COOP) or `Cross-Origin-Embedder-Policy` (COEP) isolation headers are needed.
 
 ### Windows Subsystem & Console Logging Behavior
 
@@ -141,6 +265,9 @@ The build process automatically stages all required assets (`models/`, `textures
 Run the executable from any directory:
 
 ```bash
+# On Linux:
+./build/BlockJumper
+
 # On Windows:
 .\build\Release\BlockJumper.exe
 ```

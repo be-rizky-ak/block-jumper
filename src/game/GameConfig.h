@@ -8,7 +8,18 @@
 namespace BlockJumper
 {
     /**
-     * @brief Centralized player kinematics and jump tuning parameters.
+     * @brief Window and display configuration settings.
+     */
+    struct WindowConfig
+    {
+        const char* Title = "Block Jumper - Isometric 2.5D";
+        uint32_t Width = 1280;
+        uint32_t Height = 720;
+        bool VSync = true;
+    };
+
+    /**
+     * @brief Player kinematics, movement tuning, and collision volume settings.
      */
     struct PlayerConfig
     {
@@ -22,27 +33,25 @@ namespace BlockJumper
         float Gravity = 25.0f;       // units/s²
         float JumpVelocity = std::sqrt(2.0f * 25.0f * 1.5f); // ~8.66 units/s
 
-        // Dimensions
-        Aion::Vector3 Dimensions{1.0f, 1.0f, 1.0f}; // 1x1x1 cube
+        // Collision volume dimensions (1x1x1 cube)
+        Aion::Vector3 Dimensions{1.0f, 1.0f, 1.0f};
         Aion::Vector3 HalfExtents{0.5f, 0.5f, 0.5f};
 
-        // Fall limit below which player respawns / simulation terminates
+        // Fall limit below which player simulation terminates / resets
         float VoidFallLimit = -12.0f;
 
-        // Configurable world-space fall death threshold.
-        // Safely below lowest playable platform (lowest platform top is -1.0f; max downward drop is 2.8 units).
-        // Avoids false positives during normal jumps, legitimate descent drops, or landings.
+        // World-space fall death threshold below lowest platform (top is -1.0f, drop is 2.8 units)
         float FallDeathThreshold = -5.0f;
 
         // Intentional duration (seconds) player falls naturally before transitioning to GameOver
         float FallTransitionDuration = 0.8f;
-        // Spawn at the most bottom-right portion of starting platform from isometric viewpoint
-        // Screen-right is (+X, -Z), screen-bottom is (+X, +Z) -> (+X) places player at bottom-right
+
+        // Spawn position: bottom-right corner of starting platform framing forward course ahead
         Aion::Vector3 SpawnPosition{2.2f, 0.5f, 0.4f};
     };
 
     /**
-     * @brief Platform and obstacle geometry and styling definition.
+     * @brief Platform box geometry and visual material definition.
      */
     struct PlatformBox
     {
@@ -51,7 +60,7 @@ namespace BlockJumper
         Aion::Vector4 Color{0.25f, 0.52f, 0.50f, 1.0f};
         float Metallic = 0.15f;
         float Roughness = 0.75f;
-        bool IsSolidObstacle = false; // When true, blocks horizontal traversal
+        bool IsSolidObstacle = false; // When true, blocks horizontal player traversal
         const char* Name = "Platform";
 
         float GetTopSurfaceY() const { return Position.y + Dimensions.y * 0.5f; }
@@ -61,14 +70,14 @@ namespace BlockJumper
 
     /**
      * @brief Elevated isometric camera configuration.
-     * Fixed diagonal viewing angle (Pitch ~-35.264°, Yaw 45°) exposing top and visible sides.
+     * Fixed diagonal viewing angle (Pitch ~-35.264°, Yaw 45.0°) exposing platform tops and camera-facing faces.
      */
     struct CameraConfig
     {
         // Elevated diagonal offset in (+X, +Y, +Z) looking toward player
         Aion::Vector3 Offset{14.0f, 16.0f, 14.0f};
 
-        // Fixed isometric viewing angles
+        // Fixed isometric viewing angles in degrees
         float PitchDegrees = -35.264f;
         float YawDegrees = 45.0f;
 
@@ -83,7 +92,7 @@ namespace BlockJumper
     };
 
     /**
-     * @brief Endless level progression and segment generation settings.
+     * @brief Endless level progression and segment lifecycle settings.
      */
     struct EndlessConfig
     {
@@ -93,15 +102,15 @@ namespace BlockJumper
         // Number of completed segments to retain behind the player before recycling
         int SegmentsRetainedBehind = 2;
 
-        // Distance threshold ahead of current segment exit to trigger generation
+        // Distance threshold ahead of current segment exit to trigger upcoming generation
         float GenerationDistanceThreshold = 18.0f;
 
-        // Connection jump gap between consecutive segments
+        // Connection jump gap between consecutive segments (units)
         float ConnectionGap = 1.2f;
     };
 
     /**
-     * @brief Difficulty progression and segment selection tuning parameters.
+     * @brief Difficulty progression and segment pattern selection parameters.
      */
     struct DifficultyConfig
     {
@@ -114,7 +123,7 @@ namespace BlockJumper
         // Number of completed segments required to advance to the next difficulty level
         int SegmentsPerDifficultyLevel = 3;
 
-        // Frequency (every N generated segments) at which an easier recovery segment appears for breathing room
+        // Frequency (every N generated segments) at which an easier recovery segment appears
         int EasierSegmentInterval = 4;
 
         // Number of recently spawned segment patterns to remember and avoid repeating
@@ -130,21 +139,43 @@ namespace BlockJumper
         float MaxDescentHeight = 2.8f;
 
         // Minimum platform horizontal dimension (width/depth) for safe landing area
-        // Stage-specific runtime dimension targets:
-        // - Stage 1 (Easy): 3.8–5.2 units (avg ~4.4) - large, spacious landing areas with gentle lateral shifts
-        // - Stage 2 (Normal): 3.2–4.4 units (avg ~3.5) - reasonably large platforms, selective smaller blocks (2.8–3.0)
-        // - Stage 3 (Challenging): 2.5–3.4 units (avg ~3.1) - frequent zig-zags, swerves, recovery terraces (3.8–4.4)
-        // - Stage 4 (Hard): 2.0–2.8 units (avg ~2.8) - consecutive direction changes, landing ledges (3.4–4.0)
-        // - Stage 5 (Expert): 1.4–2.0 units (avg ~2.1) - precision needle pillars, sanctuary finishes (3.0–3.4)
         float MinPlatformDimension = 1.3f;
     };
 
     /**
-     * @brief Centralized audio parameters and asset path configuration.
+     * @brief Rendering and environment lighting parameters.
+     */
+    struct RenderingConfig
+    {
+        // Directional sunlight vector (normalized)
+        Aion::Vector3 LightDirection{0.55f, 0.80f, 0.25f};
+
+        // Directional light color and intensity
+        Aion::Vector3 LightColor{2.2f, 2.15f, 2.05f};
+
+        // Ambient sky illumination color
+        Aion::Vector3 AmbientColor{0.28f, 0.29f, 0.34f};
+
+        // Shadow mapping configuration
+        bool ShadowsEnabled = true;
+        float ShadowBiasMax = 0.0025f;
+        float ShadowBiasMin = 0.0005f;
+        int ShadowMapResolution = 2048;
+
+        // Skybox asset paths
+        const char* GrassSkyboxPath = "assets/textures/kenney_skyboxes/skyboxes/skybox-day.png";
+        const char* SnowSkyboxPath = "assets/textures/kenney_skyboxes/skyboxes/skybox-morning.png";
+
+        // Character model asset path
+        const char* CharacterModelPath = "assets/models/kenney_mini-characters/models/character-male-a.glb";
+    };
+
+    /**
+     * @brief Centralized audio parameters and sound asset paths.
      */
     struct AudioConfig
     {
-        // Default category volume levels
+        // Default category volume levels [0.0f, 1.0f]
         float MasterVolume = 1.0f;
         float MusicVolume = 0.5f;
         float SFXVolume = 0.8f;
@@ -157,15 +188,52 @@ namespace BlockJumper
     };
 
     /**
-     * @brief Complete game configuration.
+     * @brief UI presentation and asset paths.
+     */
+    struct UIConfig
+    {
+        const char* FontAtlasPath = "assets/textures/kenney_ui-pack/png/kenney_future_atlas.png";
+        const char* VectorUIBasePath = "assets/textures/kenney_ui-pack/vector/";
+        float LoadingFadeDuration = 0.45f;
+        float GameOverFadeDuration = 0.30f;
+    };
+
+    /**
+     * @brief Local persistence configuration.
+     */
+    struct PersistenceConfig
+    {
+        const char* SaveFileName = "block_jumper_save.json";
+        float DefaultBestDistance = 0.0f;
+    };
+
+    /**
+     * @brief Performance limits and bounds.
+     */
+    struct PerformanceConfig
+    {
+        bool EnableFrustumCulling = true;
+        int TargetFrameRate = 60;
+        float FixedPhysicsTimestep = 1.0f / 60.0f;
+    };
+
+    /**
+     * @brief Consolidated game configuration combining all subsystem settings.
      */
     struct GameConfig
     {
+        WindowConfig Window;
         PlayerConfig Player;
         CameraConfig Camera;
         EndlessConfig Endless;
         DifficultyConfig Difficulty;
+        RenderingConfig Rendering;
         AudioConfig Audio;
+        UIConfig UI;
+        PersistenceConfig Persistence;
+        PerformanceConfig Performance;
+
+        static inline const WindowConfig DefaultWindow{};
 
         static std::vector<PlatformBox> CreateDefaultLevel()
         {

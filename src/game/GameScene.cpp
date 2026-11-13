@@ -1,4 +1,5 @@
 #include "GameScene.h"
+#include "ResourcePath.h"
 
 #include <filesystem>
 #include <iostream>
@@ -45,16 +46,6 @@ namespace BlockJumper
 
         std::cout << "[GameScene] Initializing 2.5D Isometric Block Jumper scene..." << std::endl;
 
-        auto resolveAsset = [](const std::string& path) -> std::string {
-            if (std::filesystem::exists(path)) return path;
-            if (std::filesystem::exists("games/BlockJumper/" + path)) return "games/BlockJumper/" + path;
-            if (std::filesystem::exists("../" + path)) return "../" + path;
-            if (std::filesystem::exists("../games/BlockJumper/" + path)) return "../games/BlockJumper/" + path;
-            if (std::filesystem::exists("../../games/BlockJumper/" + path)) return "../../games/BlockJumper/" + path;
-            if (std::filesystem::exists("block-jumper-stagging/" + path)) return "block-jumper-stagging/" + path;
-            return path;
-        };
-
         // Initialize persistent skybox environment maps
         if (m_renderer)
         {
@@ -64,7 +55,7 @@ namespace BlockJumper
             }
             else
             {
-                std::string grassSkyPath = resolveAsset("assets/textures/kenney_skyboxes/skyboxes/skybox-day.png");
+                std::string grassSkyPath = ResolveAsset(m_config.Rendering.GrassSkyboxPath);
                 m_grassEnvMap = Aion::EnvironmentMap::CreateFromEquirectangular(grassSkyPath);
             }
 
@@ -74,7 +65,7 @@ namespace BlockJumper
             }
             else
             {
-                std::string snowSkyPath = resolveAsset("assets/textures/kenney_skyboxes/skyboxes/skybox-morning.png");
+                std::string snowSkyPath = ResolveAsset(m_config.Rendering.SnowSkyboxPath);
                 // Asynchronously decode secondary skybox on TaskSystem worker thread
                 Aion::TaskSystem::Run([this, snowSkyPath]() {
                     std::cout << "[GameScene] Decoding Snow skybox (4096x2048) asynchronously on TaskSystem worker thread..." << std::endl;
@@ -133,8 +124,7 @@ namespace BlockJumper
         // -------------------------------------------------------------
         if (!charModel)
         {
-            std::string rawCharPath = "assets/models/kenney_mini-characters/models/character-male-a.glb";
-            std::string charPath = resolveAsset(rawCharPath);
+            std::string charPath = ResolveAsset(m_config.Rendering.CharacterModelPath);
             std::cout << "[GameScene] Loading Kenney 3D player character: " << charPath << std::endl;
             charModel = Aion::AssetManager::LoadModel(charPath);
         }
@@ -247,9 +237,9 @@ namespace BlockJumper
         // -------------------------------------------------------------
         // 5. Preload Gameplay Sound Effects
         // -------------------------------------------------------------
-        m_jumpClip = Aion::AudioSystem::LoadClip(resolveAsset(m_config.Audio.JumpSFXPath), Aion::AudioCategory::SFX, false);
-        m_gameOverClip = Aion::AudioSystem::LoadClip(resolveAsset(m_config.Audio.GameOverSFXPath), Aion::AudioCategory::SFX, false);
-        m_retryClip = Aion::AudioSystem::LoadClip(resolveAsset(m_config.Audio.RetrySFXPath), Aion::AudioCategory::SFX, false);
+        m_jumpClip = Aion::AudioSystem::LoadClip(ResolveAsset(m_config.Audio.JumpSFXPath), Aion::AudioCategory::SFX, false);
+        m_gameOverClip = Aion::AudioSystem::LoadClip(ResolveAsset(m_config.Audio.GameOverSFXPath), Aion::AudioCategory::SFX, false);
+        m_retryClip = Aion::AudioSystem::LoadClip(ResolveAsset(m_config.Audio.RetrySFXPath), Aion::AudioCategory::SFX, false);
         m_gameOverSoundPlayed = false;
         m_optionsUI.SetFeedbackClip(m_retryClip);
         std::cout << "[GameScene] Audio SFX clips loaded (Jump: " << (m_jumpClip ? "OK" : "FAILED")

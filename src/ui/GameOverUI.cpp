@@ -17,6 +17,7 @@
 #include "Aion/Renderer/VertexArray.h"
 #include "Aion/Assets/SVGImporter.h"
 #include "ui/KenneyFontAtlas.h"
+#include "game/ResourcePath.h"
 
 namespace BlockJumper
 {
@@ -24,28 +25,7 @@ namespace BlockJumper
     {
         std::string ResolveUIPath(const std::string& path)
         {
-            const std::vector<std::string> searchPrefixes = {
-                "",
-                "games/BlockJumper/",
-                "assets/",
-                "build/games/BlockJumper/",
-                "../",
-                "../games/BlockJumper/",
-                "../../games/BlockJumper/",
-                "prorotype-stagging/games/BlockJumper/",
-                "../prorotype-stagging/games/BlockJumper/",
-                "block-jumper-stagging/",
-            };
-
-            for (const auto& prefix : searchPrefixes)
-            {
-                std::string candidate = prefix + path;
-                if (std::filesystem::exists(candidate))
-                {
-                    return candidate;
-                }
-            }
-            return path;
+            return ResolveAsset(path);
         }
 
         const char* s_UIVertexShader = R"(#version 330 core

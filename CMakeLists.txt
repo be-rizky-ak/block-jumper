@@ -21,6 +21,7 @@ set(BLOCK_JUMPER_SOURCES
     src/ui/GameOverUI.cpp
     src/ui/LoadingScreen.cpp
     src/vfx/VisualEffectsSystem.cpp
+    src/game/ResourcePath.cpp
     src/ui/OptionsUI.cpp
 )
 
@@ -40,6 +41,7 @@ set(BLOCK_JUMPER_HEADERS
     src/ui/LoadingScreen.h
     src/ui/KenneyFontAtlas.h
     src/vfx/VisualEffectsSystem.h
+    src/game/ResourcePath.h
     src/ui/OptionsUI.h
 )
 
@@ -62,7 +64,7 @@ endif()
 # Windows executable subsystem:
 # - Debug: Console subsystem to provide developer diagnostics during development
 # - Release / RelWithDebInfo / MinSizeRel: Windows GUI subsystem (suppresses standalone console window)
-if(WIN32)
+if(WIN32 AND NOT EMSCRIPTEN)
     set_target_properties(BlockJumper PROPERTIES
         WIN32_EXECUTABLE $<NOT:$<CONFIG:Debug>>
     )
@@ -100,47 +102,97 @@ if(NOT AION_ENABLE_CONSOLE_LOG STREQUAL "AUTO" AND NOT AION_ENABLE_CONSOLE_LOG S
     endif()
 endif()
 
-# Copy runtime shaders to executable assets directory if available
-set(AION_RUNTIME_SHADER_VERT "")
-set(AION_RUNTIME_SHADER_FRAG "")
-if(EXISTS "${AionEngine_DIR}/../../../share/Aion/shaders/standard.vert")
-    set(AION_RUNTIME_SHADER_VERT "${AionEngine_DIR}/../../../share/Aion/shaders/standard.vert")
-    set(AION_RUNTIME_SHADER_FRAG "${AionEngine_DIR}/../../../share/Aion/shaders/standard.frag")
-elseif(DEFINED ENV{AION_SDK_DIR} AND EXISTS "$ENV{AION_SDK_DIR}/share/Aion/shaders/standard.vert")
-    set(AION_RUNTIME_SHADER_VERT "$ENV{AION_SDK_DIR}/share/Aion/shaders/standard.vert")
-    set(AION_RUNTIME_SHADER_FRAG "$ENV{AION_SDK_DIR}/share/Aion/shaders/standard.frag")
+# Discover runtime shaders from Aion SDK (if not already defined by AionEngineConfig)
+if(NOT AION_RUNTIME_SHADER_VERT OR NOT AION_RUNTIME_SHADER_FRAG)
+    set(AION_RUNTIME_SHADER_VERT "")
+    set(AION_RUNTIME_SHADER_FRAG "")
+    if(EXISTS "${AionEngine_DIR}/Common/shaders/standard.vert")
+        set(AION_RUNTIME_SHADER_VERT "${AionEngine_DIR}/Common/shaders/standard.vert")
+        set(AION_RUNTIME_SHADER_FRAG "${AionEngine_DIR}/Common/shaders/standard.frag")
+    elseif(EXISTS "${AionEngine_DIR}/../Common/shaders/standard.vert")
+        set(AION_RUNTIME_SHADER_VERT "${AionEngine_DIR}/../Common/shaders/standard.vert")
+        set(AION_RUNTIME_SHADER_FRAG "${AionEngine_DIR}/../Common/shaders/standard.frag")
+    elseif(EXISTS "${AionEngine_DIR}/../../Common/shaders/standard.vert")
+        set(AION_RUNTIME_SHADER_VERT "${AionEngine_DIR}/../../Common/shaders/standard.vert")
+        set(AION_RUNTIME_SHADER_FRAG "${AionEngine_DIR}/../../Common/shaders/standard.frag")
+    elseif(EXISTS "${AionEngine_DIR}/../../../Common/shaders/standard.vert")
+        set(AION_RUNTIME_SHADER_VERT "${AionEngine_DIR}/../../../Common/shaders/standard.vert")
+        set(AION_RUNTIME_SHADER_FRAG "${AionEngine_DIR}/../../../Common/shaders/standard.frag")
+    elseif(EXISTS "${AionEngine_DIR}/../../../../Common/shaders/standard.vert")
+        set(AION_RUNTIME_SHADER_VERT "${AionEngine_DIR}/../../../../Common/shaders/standard.vert")
+        set(AION_RUNTIME_SHADER_FRAG "${AionEngine_DIR}/../../../../Common/shaders/standard.frag")
+    elseif(EXISTS "${AionEngine_DIR}/../../../share/Aion/shaders/standard.vert")
+        set(AION_RUNTIME_SHADER_VERT "${AionEngine_DIR}/../../../share/Aion/shaders/standard.vert")
+        set(AION_RUNTIME_SHADER_FRAG "${AionEngine_DIR}/../../../share/Aion/shaders/standard.frag")
+    elseif(EXISTS "${AionEngine_DIR}/../../share/Aion/shaders/standard.vert")
+        set(AION_RUNTIME_SHADER_VERT "${AionEngine_DIR}/../../share/Aion/shaders/standard.vert")
+        set(AION_RUNTIME_SHADER_FRAG "${AionEngine_DIR}/../../share/Aion/shaders/standard.frag")
+    elseif(DEFINED ENV{AION_SDK_DIR} AND EXISTS "$ENV{AION_SDK_DIR}/Common/shaders/standard.vert")
+        set(AION_RUNTIME_SHADER_VERT "$ENV{AION_SDK_DIR}/Common/shaders/standard.vert")
+        set(AION_RUNTIME_SHADER_FRAG "$ENV{AION_SDK_DIR}/Common/shaders/standard.frag")
+    elseif(DEFINED ENV{AION_SDK_DIR} AND EXISTS "$ENV{AION_SDK_DIR}/share/Aion/shaders/standard.vert")
+        set(AION_RUNTIME_SHADER_VERT "$ENV{AION_SDK_DIR}/share/Aion/shaders/standard.vert")
+        set(AION_RUNTIME_SHADER_FRAG "$ENV{AION_SDK_DIR}/share/Aion/shaders/standard.frag")
+    endif()
 endif()
+if(EMSCRIPTEN)
+    # Configure Web target using Aion SDK platform configuration
+    set(_extra_preloads "")
+    if(AION_RUNTIME_SHADER_VERT AND AION_RUNTIME_SHADER_FRAG)
+        list(APPEND _extra_preloads
+            "${AION_RUNTIME_SHADER_VERT}@/assets/shaders/standard.vert"
+            "${AION_RUNTIME_SHADER_FRAG}@/assets/shaders/standard.frag"
+        )
+    endif()
 
-if(AION_RUNTIME_SHADER_VERT)
-    add_custom_command(
-        TARGET BlockJumper POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:BlockJumper>/assets/shaders"
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different
-            "${AION_RUNTIME_SHADER_VERT}"
-            "${AION_RUNTIME_SHADER_FRAG}"
-            "$<TARGET_FILE_DIR:BlockJumper>/assets/shaders/"
-        COMMENT "Copying Aion runtime standard shaders to output assets directory..."
+    aion_configure_web_executable(BlockJumper
+        SHELL_FILE "${CMAKE_CURRENT_SOURCE_DIR}/web/shell.html"
+        ASSETS_DIR "${CMAKE_CURRENT_SOURCE_DIR}/assets"
+        EXTRA_PRELOAD_FILES ${_extra_preloads}
     )
-endif()
+else()
+    if(AION_RUNTIME_SHADER_VERT)
+        add_custom_command(
+            TARGET BlockJumper POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:BlockJumper>/assets/shaders"
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "${AION_RUNTIME_SHADER_VERT}"
+                "${AION_RUNTIME_SHADER_FRAG}"
+                "$<TARGET_FILE_DIR:BlockJumper>/assets/shaders/"
+            COMMENT "Copying Aion runtime standard shaders to output assets directory..."
+        )
+    endif()
 
-# Copy 3D asset models to executable assets directory if present
-if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/assets/models")
-    add_custom_command(
-        TARGET BlockJumper POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E copy_directory
-            "${CMAKE_CURRENT_SOURCE_DIR}/assets/models"
-            "$<TARGET_FILE_DIR:BlockJumper>/assets/models"
-        COMMENT "Copying 3D asset models to output assets directory..."
-    )
-endif()
+    # Copy 3D asset models to executable assets directory if present
+    if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/assets/models")
+        add_custom_command(
+            TARGET BlockJumper POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_directory
+                "${CMAKE_CURRENT_SOURCE_DIR}/assets/models"
+                "$<TARGET_FILE_DIR:BlockJumper>/assets/models"
+            COMMENT "Copying 3D asset models to output assets directory..."
+        )
+    endif()
 
-# Copy texture assets to executable assets directory if present
-if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/assets/textures")
-    add_custom_command(
-        TARGET BlockJumper POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E copy_directory
-            "${CMAKE_CURRENT_SOURCE_DIR}/assets/textures"
-            "$<TARGET_FILE_DIR:BlockJumper>/assets/textures"
-        COMMENT "Copying texture assets to output assets directory..."
-    )
+    # Copy texture assets to executable assets directory if present
+    if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/assets/textures")
+        add_custom_command(
+            TARGET BlockJumper POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_directory
+                "${CMAKE_CURRENT_SOURCE_DIR}/assets/textures"
+                "$<TARGET_FILE_DIR:BlockJumper>/assets/textures"
+            COMMENT "Copying texture assets to output assets directory..."
+        )
+    endif()
+
+    # Copy audio assets to executable assets directory if present
+    if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/assets/audio")
+        add_custom_command(
+            TARGET BlockJumper POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_directory
+                "${CMAKE_CURRENT_SOURCE_DIR}/assets/audio"
+                "$<TARGET_FILE_DIR:BlockJumper>/assets/audio"
+            COMMENT "Copying audio assets to output assets directory..."
+        )
+    endif()
 endif()

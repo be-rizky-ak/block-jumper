@@ -1,4 +1,5 @@
 #include "LevelManager.h"
+#include "ResourcePath.h"
 
 #include <algorithm>
 #include <cmath>
@@ -1217,36 +1218,7 @@ namespace BlockJumper
 
     static std::string ResolveAssetPath(const std::string& relativePath)
     {
-        if (std::filesystem::exists(relativePath))
-        {
-            return relativePath;
-        }
-        std::string cand1 = "games/BlockJumper/" + relativePath;
-        if (std::filesystem::exists(cand1))
-        {
-            return cand1;
-        }
-        std::string cand2 = "../" + relativePath;
-        if (std::filesystem::exists(cand2))
-        {
-            return cand2;
-        }
-        std::string cand3 = "../games/BlockJumper/" + relativePath;
-        if (std::filesystem::exists(cand3))
-        {
-            return cand3;
-        }
-        std::string cand4 = "../../games/BlockJumper/" + relativePath;
-        if (std::filesystem::exists(cand4))
-        {
-            return cand4;
-        }
-        std::string candLegacy = "block-jumper-stagging/" + relativePath;
-        if (std::filesystem::exists(candLegacy))
-        {
-            return candLegacy;
-        }
-        return relativePath;
+        return ResolveAsset(relativePath);
     }
 
     void LevelManager::LoadPlatformModels()
@@ -1553,7 +1525,7 @@ namespace BlockJumper
         else
         {
             // Deterministic model for starting plaza to keep lighting stability pixel check consistent
-            if (plat.Name == "StartPlatform" && m_grassLargeModel)
+            if (plat.Name && std::strcmp(plat.Name, "StartPlatform") == 0 && m_grassLargeModel)
             {
                 selectedModel = m_grassLargeModel;
                 baseWidth = 2.0f;

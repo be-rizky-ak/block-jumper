@@ -99,11 +99,6 @@ namespace BlockJumper
         // -------------------------------------------------------------
         // 2. Resolve Platform Top Landing and Ground Support
         // -------------------------------------------------------------
-        float playerMinX = position.x - m_halfExtents.x;
-        float playerMaxX = position.x + m_halfExtents.x;
-        float playerMinZ = position.z - m_halfExtents.z;
-        float playerMaxZ = position.z + m_halfExtents.z;
-
         // If ascending, player cannot land on top of platforms
         if (verticalVelocity > 0.0f)
         {

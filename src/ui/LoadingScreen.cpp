@@ -13,6 +13,7 @@
 #include "Aion/Renderer/TextureLibrary.h"
 #include "Aion/Renderer/VertexArray.h"
 #include "ui/KenneyFontAtlas.h"
+#include "game/ResourcePath.h"
 
 namespace BlockJumper
 {
@@ -20,28 +21,7 @@ namespace BlockJumper
     {
         std::string ResolvePath(const std::string& path)
         {
-            const std::vector<std::string> prefixes = {
-                "",
-                "games/BlockJumper/",
-                "assets/",
-                "build/games/BlockJumper/",
-                "../",
-                "../games/BlockJumper/",
-                "../../games/BlockJumper/",
-                "prorotype-stagging/games/BlockJumper/",
-                "../prorotype-stagging/games/BlockJumper/",
-                "block-jumper-stagging/",
-            };
-
-            for (const auto& prefix : prefixes)
-            {
-                std::string cand = prefix + path;
-                if (std::filesystem::exists(cand))
-                {
-                    return cand;
-                }
-            }
-            return path;
+            return ResolveAsset(path);
         }
 
         const char* s_LoadingVertexShader = R"(#version 330 core

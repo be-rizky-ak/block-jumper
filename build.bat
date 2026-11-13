@@ -36,6 +36,24 @@ if /i "%~1"=="--sdk-path" (
     shift
     goto parse_args
 )
+if /i "%~1"=="-SdkPath" (
+    set "SDK_PATH=%~2"
+    shift
+    shift
+    goto parse_args
+)
+if /i "%~1"=="--sdk-dir" (
+    set "SDK_PATH=%~2"
+    shift
+    shift
+    goto parse_args
+)
+if /i "%~1"=="-SdkDir" (
+    set "SDK_PATH=%~2"
+    shift
+    shift
+    goto parse_args
+)
 if /i "%~1"=="--help" goto show_help
 if /i "%~1"=="-h" goto show_help
 
@@ -52,16 +70,97 @@ goto show_help
 echo Usage: build.bat [CONFIG] [OPTIONS]
 echo.
 echo Configurations:
-echo   Release         Build in Release configuration (default)
-echo   Debug           Build in Debug configuration
+echo   Release                       Build in Release configuration (default)
+echo   Debug                         Build in Debug configuration
 echo.
 echo Options:
-echo   --sdk-path ^<path^> Path to Aion SDK installation (or set AION_SDK_DIR)
-echo   --clean          Clean build directory before configuring
-echo   --help, -h       Display this help message
+echo   --sdk-path, -SdkPath ^<path^>   Path to unified Aion SDK root (or set AION_SDK_DIR)
+echo   --clean                        Clean build directory before configuring
+echo   --help, -h                     Display this help message
 exit /b 0
 
 :after_args
+:: Discover SDK root if not explicitly provided
+if not defined SDK_PATH (
+    if exist "%PROJECT_ROOT%..\..\aion\dist\sdk\AionSDK" (
+        set "SDK_PATH=%PROJECT_ROOT%..\..\aion\dist\sdk\AionSDK"
+    ) else if exist "%PROJECT_ROOT%..\..\..\aion\dist\sdk\AionSDK" (
+        set "SDK_PATH=%PROJECT_ROOT%..\..\..\aion\dist\sdk\AionSDK"
+    ) else if exist "%PROJECT_ROOT%..\..\dist\sdk\AionSDK" (
+        set "SDK_PATH=%PROJECT_ROOT%..\..\dist\sdk\AionSDK"
+    ) else if exist "C:\AionSDK" (
+        set "SDK_PATH=C:\AionSDK"
+    ) else if defined USERPROFILE if exist "%USERPROFILE%\AionSDK" (
+        set "SDK_PATH=%USERPROFILE%\AionSDK"
+    ) else if exist "%PROJECT_ROOT%..\..\aion\dist\AionSDK" (
+        set "SDK_PATH=%PROJECT_ROOT%..\..\aion\dist\AionSDK"
+    ) else if exist "%PROJECT_ROOT%..\..\aion\dist\sdk\Release\AionSDK" (
+        set "SDK_PATH=%PROJECT_ROOT%..\..\aion\dist\sdk\Release\AionSDK"
+    )
+)
+
+:: Validate SDK path and ensure platform distribution is available
+if defined SDK_PATH (
+    if not exist "%SDK_PATH%" (
+        echo [ERROR] Provided Aion SDK path does not exist: %SDK_PATH%
+        exit /b 1
+    )
+
+    set "IS_UNIFIED_ROOT=0"
+    if exist "%SDK_PATH%\AionEngineConfig.cmake" set "IS_UNIFIED_ROOT=1"
+    if exist "%SDK_PATH%\AionSDKConfig.cmake" set "IS_UNIFIED_ROOT=1"
+    if exist "%SDK_PATH%\Windows" if exist "%SDK_PATH%\Web" set "IS_UNIFIED_ROOT=1"
+
+    if "!IS_UNIFIED_ROOT!"=="1" (
+        if not exist "%SDK_PATH%\Windows" (
+            echo ===================================================
+            echo [ERROR] Missing Windows Platform Distribution in Unified SDK!
+            echo ===================================================
+            echo The unified Aion SDK located at '%SDK_PATH%' does not contain the 'Windows' platform distribution.
+            echo The current build targets native Windows.
+            echo.
+            echo Actionable Guidance:
+            echo   1. Run package.bat in the Aion repository to generate the Windows distribution.
+            echo   2. Rebuild Block Jumper using the unified SDK root:
+            echo        .\build.bat -SdkPath %SDK_PATH%
+            echo ===================================================
+            exit /b 1
+        )
+    ) else (
+        if exist "%SDK_PATH%\lib\cmake\AionEngine\Web.cmake" (
+            echo ===================================================
+            echo [ERROR] Incompatible Aion SDK Distribution Detected!
+            echo ===================================================
+            echo The SDK located at '%SDK_PATH%' is a WebAssembly distribution.
+            echo The current build targets native Windows.
+            echo.
+            echo Actionable Guidance:
+            echo   1. Specify the unified Aion SDK root:
+            echo        .\build.bat -SdkPath path\to\AionSDK
+            echo ===================================================
+            exit /b 1
+        )
+        if exist "%SDK_PATH%\lib\cmake\AionEngine\AionEngineConfigVersion.cmake" (
+            findstr /c:"_AION_SDK_IS_WEB 1" "%SDK_PATH%\lib\cmake\AionEngine\AionEngineConfigVersion.cmake" >nul 2>&1
+            if !errorlevel! equ 0 (
+                echo ===================================================
+                echo [ERROR] Incompatible Aion SDK Distribution Detected!
+                echo ===================================================
+                echo The SDK located at '%SDK_PATH%' is a WebAssembly distribution.
+                echo The current build targets native Windows.
+                echo.
+                echo Actionable Guidance:
+                echo   1. Specify the unified Aion SDK root:
+                echo        .\build.bat -SdkPath path\to\AionSDK
+                echo ===================================================
+                exit /b 1
+            )
+        )
+        echo [DEPRECATION NOTICE] You passed a platform-specific SDK path: '%SDK_PATH%'.
+        echo Please migrate to specifying the unified SDK root (e.g. -SdkPath path\to\AionSDK).
+        echo Proceeding using backward-compatibility path...
+    )
+)
 echo ===================================================
 echo  Block Jumper Windows Build Workflow
 echo ===================================================
@@ -95,6 +194,11 @@ if not exist "%BUILD_DIR%" (
 set "CMAKE_CONFIG_ARGS=-S . -B "%BUILD_DIR%" -A x64 -DCMAKE_BUILD_TYPE=%BUILD_CONFIG%"
 if defined SDK_PATH (
     set "CMAKE_CONFIG_ARGS=!CMAKE_CONFIG_ARGS! -DCMAKE_PREFIX_PATH="%SDK_PATH%""
+)
+if /i "%BUILD_CONFIG%"=="Release" (
+    set "CMAKE_CONFIG_ARGS=!CMAKE_CONFIG_ARGS! -DAION_ENABLE_CONSOLE_LOG=OFF"
+) else (
+    set "CMAKE_CONFIG_ARGS=!CMAKE_CONFIG_ARGS! -DAION_ENABLE_CONSOLE_LOG=ON"
 )
 
 echo [BUILD] Configuring CMake...
