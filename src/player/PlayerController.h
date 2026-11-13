@@ -63,6 +63,23 @@ namespace BlockJumper
          */
         void ResetKinematics(const Aion::Vector3& spawnPos, float facingYaw = -135.0f);
 
+        // Touch input integration
+        void SetTouchInput(float forwardAxis, float rightAxis, bool jumpEdge)
+        {
+            m_touchForward = std::clamp(forwardAxis, -1.0f, 1.0f);
+            m_touchRight = std::clamp(rightAxis, -1.0f, 1.0f);
+            if (jumpEdge)
+            {
+                m_touchJumpEdge = true;
+            }
+        }
+        void ClearTouchInput()
+        {
+            m_touchForward = 0.0f;
+            m_touchRight = 0.0f;
+            m_touchJumpEdge = false;
+        }
+
         // Simulation override for automated verification/testing
         // forwardAxis: +1 (W / forward relative to camera), -1 (S / backward)
         // rightAxis:   +1 (D / right relative to camera),   -1 (A / left)
@@ -91,5 +108,9 @@ namespace BlockJumper
         float m_simulatedForward = 0.0f;
         float m_simulatedRight = 0.0f;
         bool m_simulatedJump = false;
+
+        float m_touchForward = 0.0f;
+        float m_touchRight = 0.0f;
+        bool m_touchJumpEdge = false;
     };
 } // namespace BlockJumper

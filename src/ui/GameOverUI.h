@@ -38,10 +38,21 @@ namespace BlockJumper
         void Shutdown();
 
         /**
-         * @brief Checks if the Retry action was requested via keyboard (R, Space, Enter)
-         * or mouse click on the Retry button.
+         * @brief Checks if the Retry action was requested via keyboard (R, Space, Enter, 1, S)
+         * or mouse click on Retry / Stage buttons.
          */
         bool CheckRetryAction(int screenWidth, int screenHeight);
+
+        /**
+         * @brief Returns the chosen target retry stage (1 for Stage 1, or latest reached stage).
+         */
+        int GetSelectedRetryStage() const { return m_selectedRetryStage; }
+
+        /**
+         * @brief Sets the latest stage reached for retry option presentation.
+         */
+        void SetLatestStageReached(int stage) { m_latestStageReached = std::max(1, stage); }
+        int GetLatestStageReached() const { return m_latestStageReached; }
 
         /**
          * @brief Checks if the Options window action was requested from in-game HUD.
@@ -92,7 +103,8 @@ namespace BlockJumper
             bool isNewRecord,
             int completedSegments = 0,
             const char* difficultyStage = "Easy",
-            float gameOverDuration = 1.0f);
+            float gameOverDuration = 1.0f,
+            int latestStage = 1);
 
         /**
          * @brief Backward-compatible Render() signature for existing tests and call sites.
@@ -107,6 +119,7 @@ namespace BlockJumper
          * @brief Tests if given screen coordinates fall inside the Retry button bounds.
          */
         bool IsMouseOverButton(float mouseX, float mouseY, int screenWidth, int screenHeight) const;
+        bool IsMouseOverStage1Button(float mouseX, float mouseY, int screenWidth, int screenHeight) const;
         bool IsMouseOverHUDOptions(float mouseX, float mouseY, int screenWidth, int screenHeight) const;
         bool IsMouseOverGameOverOptions(float mouseX, float mouseY, int screenWidth, int screenHeight) const;
 
@@ -182,6 +195,11 @@ namespace BlockJumper
         mutable float m_btnMinY = -0.22f;
         mutable float m_btnMaxY = -0.08f;
 
+        mutable float m_s1MinX = 0.0f;
+        mutable float m_s1MaxX = 0.0f;
+        mutable float m_s1MinY = 0.0f;
+        mutable float m_s1MaxY = 0.0f;
+
         mutable float m_hudOptMinX = 0.0f;
         mutable float m_hudOptMaxX = 0.0f;
         mutable float m_hudOptMinY = 0.0f;
@@ -192,7 +210,10 @@ namespace BlockJumper
         mutable float m_goOptMinY = 0.0f;
         mutable float m_goOptMaxY = 0.0f;
 
+        int m_latestStageReached = 1;
+        int m_selectedRetryStage = 1;
         bool m_buttonPressed = false;
+        bool m_stage1ButtonPressed = false;
         int m_buttonVisualStateOverride = -1;
         float m_gameOverAnimTime = 0.0f;
 

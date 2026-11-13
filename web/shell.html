@@ -53,6 +53,10 @@
         box-shadow: 0 12px 36px rgba(0, 0, 0, 0.7);
         border-radius: 4px;
         cursor: default;
+        touch-action: none;
+        -webkit-touch-callout: none;
+        -webkit-user-select: none;
+        user-select: none;
       }
       /* Polished Loading Overlay */
       #loading-overlay {
@@ -367,8 +371,53 @@
           if (canvas) {
             canvas.focus();
           }
+          if (typeof Module._BlockJumper_SetTouchCapable === 'function') {
+            Module._BlockJumper_SetTouchCapable(hasTouchCapability ? 1 : 0);
+          }
         }
       };
+
+      // Multi-Touch and Gesture Management
+      var hasTouchCapability = ('ontouchstart' in window) ||
+                               (navigator && navigator.maxTouchPoints > 0) ||
+                               (window.matchMedia && window.matchMedia('(pointer: coarse)').matches);
+
+      function dispatchTouch(touch, phase) {
+        if (!canvas || typeof Module._BlockJumper_OnTouch !== 'function') return;
+        var rect = canvas.getBoundingClientRect();
+        if (rect.width <= 0 || rect.height <= 0) return;
+        var normX = (touch.clientX - rect.left) / rect.width;
+        var normY = (touch.clientY - rect.top) / rect.height;
+        Module._BlockJumper_OnTouch(touch.identifier, phase, normX, normY);
+      }
+
+      function handleTouch(e, phase) {
+        if (e.cancelable) {
+          e.preventDefault();
+        }
+        for (var i = 0; i < e.changedTouches.length; i++) {
+          dispatchTouch(e.changedTouches[i], phase);
+        }
+      }
+
+      if (canvas) {
+        canvas.addEventListener('touchstart', function(e) { handleTouch(e, 0); }, { passive: false });
+        canvas.addEventListener('touchmove', function(e) { handleTouch(e, 1); }, { passive: false });
+        canvas.addEventListener('touchend', function(e) { handleTouch(e, 2); }, { passive: false });
+        canvas.addEventListener('touchcancel', function(e) { handleTouch(e, 3); }, { passive: false });
+      }
+
+      window.addEventListener('blur', function() {
+        if (typeof Module._BlockJumper_ClearTouches === 'function') {
+          Module._BlockJumper_ClearTouches();
+        }
+      });
+
+      document.addEventListener('visibilitychange', function() {
+        if (document.hidden && typeof Module._BlockJumper_ClearTouches === 'function') {
+          Module._BlockJumper_ClearTouches();
+        }
+      });
 
       window.onerror = function(event) {
         console.error('[BlockJumper Error]', event);

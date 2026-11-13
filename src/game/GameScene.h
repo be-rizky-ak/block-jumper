@@ -16,6 +16,7 @@
 #include "player/PlayerController.h"
 #include "ui/GameOverUI.h"
 #include "ui/OptionsUI.h"
+#include "ui/TouchControlsUI.h"
 #include "vfx/VisualEffectsSystem.h"
 
 namespace Aion
@@ -80,8 +81,10 @@ namespace BlockJumper
 
         void TriggerFall();
         void TriggerGameOver();
-        void TriggerRetry();
-        void ResetRun();
+        void TriggerRetry(int targetStage = -1);
+        void ResetRun(int targetStage = 1);
+
+        int GetHighestStageReached() const { return m_highestStageReached; }
 
         std::shared_ptr<Aion::Object3D> GetPlayer() const { return m_player; }
         std::shared_ptr<Aion::Object3D> GetPlatform() const { return m_mainPlatform; }
@@ -95,6 +98,8 @@ namespace BlockJumper
         LevelManager& GetLevelManager() { return m_levelManager; }
         const LevelManager& GetLevelManager() const { return m_levelManager; }
         GameOverUI& GetGameOverUI() { return m_gameOverUI; }
+        TouchControlsUI& GetTouchControls() { return m_touchControls; }
+        const TouchControlsUI& GetTouchControls() const { return m_touchControls; }
         OptionsUI& GetOptionsUI() { return m_optionsUI; }
         const OptionsUI& GetOptionsUI() const { return m_optionsUI; }
         bool IsOptionsOpen() const { return m_optionsUI.IsOpen(); }
@@ -146,6 +151,7 @@ namespace BlockJumper
         GameState m_gameState = GameState::Playing;
         GameOverUI m_gameOverUI;
         OptionsUI m_optionsUI;
+        TouchControlsUI m_touchControls;
         VisualEffectsSystem m_vfxSystem;
         GameConfig m_config;
         SaveManager m_saveManager;
@@ -163,5 +169,6 @@ namespace BlockJumper
         bool m_isNewRecord = false;
         int m_deathCount = 0;
         int m_retryCount = 0;
+        int m_highestStageReached = 1;
     };
 } // namespace BlockJumper

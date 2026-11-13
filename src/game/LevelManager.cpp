@@ -89,6 +89,118 @@ namespace BlockJumper
                   << " (" << GetDifficultyStageName(m_config.Difficulty.InitialDifficulty) << ")." << std::endl;
     }
 
+    void LevelManager::ResetToStage(int targetStage, Aion::Vector3& outSpawnPos)
+    {
+        if (targetStage <= 1)
+        {
+            Reset();
+            outSpawnPos = m_config.Player.SpawnPosition;
+            return;
+        }
+
+        targetStage = std::clamp(targetStage, 1, m_config.Difficulty.MaxDifficulty);
+
+        for (const auto& seg : m_activeSegments)
+        {
+            RecycleSegment(seg);
+        }
+        m_activeSegments.clear();
+        m_activePlatforms.clear();
+        m_currentSegmentIndex = 0;
+        m_forwardProgress = 0.0f;
+        m_segmentLengths.clear();
+        m_segmentCumulativeStarts.clear();
+        m_segmentsGenerated = 0;
+        m_lastPatternIndex = -1;
+        m_lastDecorCompositionIndex = -1;
+        m_recentPatternsHistory.clear();
+        m_lastSelectedModelName.clear();
+        m_lastReportedDifficulty = m_config.Difficulty.InitialDifficulty;
+        m_rng = std::mt19937{1337};
+
+        int segmentsPerLevel = std::max(1, m_config.Difficulty.SegmentsPerDifficultyLevel);
+        int firstSegOfLevel = (targetStage - m_config.Difficulty.InitialDifficulty) * segmentsPerLevel;
+
+        SpawnStartingPlatform();
+        int totalNeeded = firstSegOfLevel + m_config.Endless.UpcomingSegmentsAhead;
+        while (static_cast<int>(m_segmentsGenerated) <= totalNeeded)
+        {
+            SpawnNextSegment();
+        }
+
+        std::shared_ptr<LevelSegment> targetSeg = nullptr;
+        for (const auto& seg : m_activeSegments)
+        {
+            if (seg->GetIndex() == firstSegOfLevel)
+            {
+                targetSeg = seg;
+                break;
+            }
+        }
+
+        bool foundSpawn = false;
+        if (targetSeg && !targetSeg->GetPlatforms().empty())
+        {
+            for (const auto& plat : targetSeg->GetPlatforms())
+            {
+                if (!plat.IsSolidObstacle && !plat.IsMoving && !plat.IsPeriodicHazard)
+                {
+                    outSpawnPos = Aion::Vector3{
+                        plat.Position.x,
+                        plat.GetTopSurfaceY() + m_config.Player.HalfExtents.y,
+                        plat.Position.z
+                    };
+                    foundSpawn = true;
+                    break;
+                }
+            }
+            if (!foundSpawn)
+            {
+                const auto& plat = targetSeg->GetPlatforms().front();
+                outSpawnPos = Aion::Vector3{
+                    plat.Position.x,
+                    plat.GetTopSurfaceY() + m_config.Player.HalfExtents.y,
+                    plat.Position.z
+                };
+                foundSpawn = true;
+            }
+        }
+
+        if (!foundSpawn)
+        {
+            outSpawnPos = m_config.Player.SpawnPosition;
+        }
+
+        // Clean up segments that are far behind firstSegOfLevel
+        int minSegmentToKeep = firstSegOfLevel;
+        while (!m_activeSegments.empty() && m_activeSegments.front()->GetIndex() < minSegmentToKeep)
+        {
+            auto oldest = m_activeSegments.front();
+            RecycleSegment(oldest);
+            m_activeSegments.pop_front();
+        }
+
+        m_currentSegmentIndex = firstSegOfLevel;
+        if (firstSegOfLevel >= 0 && firstSegOfLevel < static_cast<int>(m_segmentCumulativeStarts.size()))
+        {
+            m_forwardProgress = m_segmentCumulativeStarts[firstSegOfLevel];
+        }
+        else
+        {
+            m_forwardProgress = 0.0f;
+        }
+        m_lastReportedDifficulty = targetStage;
+
+        RebuildActivePlatforms();
+
+        RegisterCheckpoint(targetStage, firstSegOfLevel, outSpawnPos, m_forwardProgress);
+
+        std::cout << "[LevelManager] Reset to Stage " << targetStage
+                  << " (" << GetDifficultyStageName(targetStage) << ") at Segment " << firstSegOfLevel
+                  << " with " << m_activePlatforms.size() << " active platforms. SpawnPos=("
+                  << outSpawnPos.x << ", " << outSpawnPos.y << ", " << outSpawnPos.z << ")" << std::endl;
+    }
+
     int LevelManager::CalculateCurrentDifficulty() const
     {
         int baseDiff = m_config.Difficulty.InitialDifficulty;
@@ -2038,19 +2150,17 @@ namespace BlockJumper
     {
         std::cout << "[LevelManager] Pre-loading Kenney Mini-Forest and Platformer-Kit decoration models..." << std::endl;
 
-        // Mini-Forest models
+        // Mini-Forest models (strictly trees, rocks, flora)
         m_mfTreeModel = Aion::AssetManager::LoadModel(ResolveAssetPath("assets/models/kenney_mini-forest_1.0/models/tree.glb"));
         m_mfTreeHighModel = Aion::AssetManager::LoadModel(ResolveAssetPath("assets/models/kenney_mini-forest_1.0/models/tree-high.glb"));
         m_mfPlantModel = Aion::AssetManager::LoadModel(ResolveAssetPath("assets/models/kenney_mini-forest_1.0/models/plant.glb"));
         m_mfStonesModel = Aion::AssetManager::LoadModel(ResolveAssetPath("assets/models/kenney_mini-forest_1.0/models/stones.glb"));
         m_mfRocksLowModel = Aion::AssetManager::LoadModel(ResolveAssetPath("assets/models/kenney_mini-forest_1.0/models/rocks-low.glb"));
         m_mfRocksHighModel = Aion::AssetManager::LoadModel(ResolveAssetPath("assets/models/kenney_mini-forest_1.0/models/rocks-high.glb"));
-        m_mfTentModel = Aion::AssetManager::LoadModel(ResolveAssetPath("assets/models/kenney_mini-forest_1.0/models/tent.glb"));
-        m_mfFenceModel = Aion::AssetManager::LoadModel(ResolveAssetPath("assets/models/kenney_mini-forest_1.0/models/fence.glb"));
         m_mfPatchGrassModel = Aion::AssetManager::LoadModel(ResolveAssetPath("assets/models/kenney_mini-forest_1.0/models/patch-grass.glb"));
         m_mfPatchDirtModel = Aion::AssetManager::LoadModel(ResolveAssetPath("assets/models/kenney_mini-forest_1.0/models/patch-dirt.glb"));
 
-        // Platformer-Kit models
+        // Platformer-Kit models (strictly trees, rocks, flowers)
         m_pkGrassModel = Aion::AssetManager::LoadModel(ResolveAssetPath("assets/models/kenney_platformer-kit/models/grass.glb"));
         m_pkFlowersModel = Aion::AssetManager::LoadModel(ResolveAssetPath("assets/models/kenney_platformer-kit/models/flowers.glb"));
         m_pkFlowersTallModel = Aion::AssetManager::LoadModel(ResolveAssetPath("assets/models/kenney_platformer-kit/models/flowers-tall.glb"));
@@ -2058,17 +2168,27 @@ namespace BlockJumper
         m_pkRocksModel = Aion::AssetManager::LoadModel(ResolveAssetPath("assets/models/kenney_platformer-kit/models/rocks.glb"));
         m_pkStonesModel = Aion::AssetManager::LoadModel(ResolveAssetPath("assets/models/kenney_platformer-kit/models/stones.glb"));
         m_pkMushroomsModel = Aion::AssetManager::LoadModel(ResolveAssetPath("assets/models/kenney_platformer-kit/models/mushrooms.glb"));
-        m_pkFenceLowModel = Aion::AssetManager::LoadModel(ResolveAssetPath("assets/models/kenney_platformer-kit/models/fence-low-straight.glb"));
-        m_pkFenceBrokenModel = Aion::AssetManager::LoadModel(ResolveAssetPath("assets/models/kenney_platformer-kit/models/fence-broken.glb"));
-        m_pkCrateModel = Aion::AssetManager::LoadModel(ResolveAssetPath("assets/models/kenney_platformer-kit/models/crate.glb"));
+        m_pkTreeModel = Aion::AssetManager::LoadModel(ResolveAssetPath("assets/models/kenney_platformer-kit/models/tree.glb"));
         m_pkTreePineModel = Aion::AssetManager::LoadModel(ResolveAssetPath("assets/models/kenney_platformer-kit/models/tree-pine.glb"));
         m_pkTreePineSmallModel = Aion::AssetManager::LoadModel(ResolveAssetPath("assets/models/kenney_platformer-kit/models/tree-pine-small.glb"));
-        m_pkSignModel = Aion::AssetManager::LoadModel(ResolveAssetPath("assets/models/kenney_platformer-kit/models/sign.glb"));
 
         // Snow / Mountain nature models
         m_pkTreePineSnowModel = Aion::AssetManager::LoadModel(ResolveAssetPath("assets/models/kenney_platformer-kit/models/tree-pine-snow.glb"));
         m_pkTreePineSnowSmallModel = Aion::AssetManager::LoadModel(ResolveAssetPath("assets/models/kenney_platformer-kit/models/tree-pine-snow-small.glb"));
         m_pkTreeSnowModel = Aion::AssetManager::LoadModel(ResolveAssetPath("assets/models/kenney_platformer-kit/models/tree-snow.glb"));
+
+        // Decorative background platform structure models
+        m_pkPlatformModel = Aion::AssetManager::LoadModel(ResolveAssetPath("assets/models/kenney_platformer-kit/models/platform.glb"));
+
+        // Large Floating Island foundation models (Platformer-Kit)
+        m_pkGrassLargeTallModel = Aion::AssetManager::LoadModel(ResolveAssetPath("assets/models/kenney_platformer-kit/models/block-grass-large-tall.glb"));
+        m_pkGrassOverhangTallModel = Aion::AssetManager::LoadModel(ResolveAssetPath("assets/models/kenney_platformer-kit/models/block-grass-overhang-large-tall.glb"));
+        m_pkGrassOverhangLargeModel = Aion::AssetManager::LoadModel(ResolveAssetPath("assets/models/kenney_platformer-kit/models/block-grass-overhang-large.glb"));
+        m_pkGrassHexagonModel = Aion::AssetManager::LoadModel(ResolveAssetPath("assets/models/kenney_platformer-kit/models/block-grass-hexagon.glb"));
+        m_pkGrassOverhangHexagonModel = Aion::AssetManager::LoadModel(ResolveAssetPath("assets/models/kenney_platformer-kit/models/block-grass-overhang-hexagon.glb"));
+        m_pkSnowLargeTallModel = Aion::AssetManager::LoadModel(ResolveAssetPath("assets/models/kenney_platformer-kit/models/block-snow-large-tall.glb"));
+        m_pkSnowOverhangTallModel = Aion::AssetManager::LoadModel(ResolveAssetPath("assets/models/kenney_platformer-kit/models/block-snow-overhang-large-tall.glb"));
+        m_pkSnowHexagonModel = Aion::AssetManager::LoadModel(ResolveAssetPath("assets/models/kenney_platformer-kit/models/block-snow-hexagon.glb"));
 
         // Tune decoration material properties for balanced brightness and visual readability against platforms
         auto tuneDecorMaterials = [](const std::shared_ptr<Aion::Model>& model) {
@@ -2086,12 +2206,16 @@ namespace BlockJumper
 
         const std::shared_ptr<Aion::Model> decorModels[] = {
             m_mfTreeModel, m_mfTreeHighModel, m_mfPlantModel, m_mfStonesModel,
-            m_mfRocksLowModel, m_mfRocksHighModel, m_mfTentModel, m_mfFenceModel,
+            m_mfRocksLowModel, m_mfRocksHighModel,
             m_mfPatchGrassModel, m_mfPatchDirtModel, m_pkGrassModel, m_pkFlowersModel,
             m_pkFlowersTallModel, m_pkPlantModel, m_pkRocksModel, m_pkStonesModel,
-            m_pkMushroomsModel, m_pkFenceLowModel, m_pkFenceBrokenModel, m_pkCrateModel,
-            m_pkTreePineModel, m_pkTreePineSmallModel, m_pkSignModel,
-            m_pkTreePineSnowModel, m_pkTreePineSnowSmallModel, m_pkTreeSnowModel
+            m_pkMushroomsModel,
+            m_pkTreeModel, m_pkTreePineModel, m_pkTreePineSmallModel,
+            m_pkTreePineSnowModel, m_pkTreePineSnowSmallModel, m_pkTreeSnowModel,
+            m_pkPlatformModel,
+            m_pkGrassLargeTallModel, m_pkGrassOverhangTallModel, m_pkGrassOverhangLargeModel,
+            m_pkGrassHexagonModel, m_pkGrassOverhangHexagonModel,
+            m_pkSnowLargeTallModel, m_pkSnowOverhangTallModel, m_pkSnowHexagonModel
         };
         for (const auto& dm : decorModels)
         {
@@ -2403,26 +2527,29 @@ namespace BlockJumper
             }
         };
 
-        // Distinctive Adventurer Basecamp on North-West corner (-X, +Z)
-        addDecor(m_mfTentModel, Aion::Vector3(-2.2f, 0.0f, 2.0f), 1.0f, 45.0f, "Start_Tent");
-        addDecor(m_mfTreeHighModel, Aion::Vector3(-2.8f, 0.0f, 2.7f), 1.1f, -25.0f, "Start_TreeHighNW");
-        addDecor(m_mfStonesModel, Aion::Vector3(-1.3f, 0.0f, 2.5f), 0.85f, 15.0f, "Start_StonesNW");
-        addDecor(m_mfFenceModel, Aion::Vector3(-2.4f, 0.0f, 3.2f), 1.0f, 0.0f, "Start_FenceNW1");
-        addDecor(m_mfFenceModel, Aion::Vector3(-1.3f, 0.0f, 3.2f), 1.0f, 0.0f, "Start_FenceNW2");
-        addDecor(m_pkFlowersModel, Aion::Vector3(-2.0f, 0.0f, 1.0f), 0.9f, 60.0f, "Start_FlowersNW");
+        // Natural woodland landmark composition on North-West corner (-X, +Z)
+        addDecor(m_mfRocksHighModel, Aion::Vector3(-2.3f, 0.35f, 2.2f), 1.1f, 35.0f, "Start_RockNW");
+        addDecor(m_mfTreeHighModel, Aion::Vector3(-2.4f, 0.0f, 2.4f), 1.0f, -25.0f, "Start_TreeHighNW");
+        addDecor(m_mfStonesModel, Aion::Vector3(-1.6f, 0.0f, 2.4f), 0.85f, 15.0f, "Start_StonesNW");
+        addDecor(m_pkFlowersTallModel, Aion::Vector3(-2.0f, 0.0f, 1.4f), 0.9f, 60.0f, "Start_FlowersTallNW");
+        addDecor(m_pkFlowersModel, Aion::Vector3(-1.5f, 0.0f, 1.8f), 0.85f, 40.0f, "Start_FlowersNW");
 
-        // Wooden direction signpost guiding player towards the course
-        addDecor(m_pkSignModel, Aion::Vector3(2.5f, 0.0f, -0.8f), 1.1f, -45.0f, "Start_Signpost");
+        // Natural rock & wildflower accents guiding player towards the course
+        addDecor(m_pkRocksModel, Aion::Vector3(2.4f, 0.0f, -0.8f), 0.85f, -45.0f, "Start_RockSE");
+        addDecor(m_pkFlowersModel, Aion::Vector3(2.2f, 0.0f, -1.2f), 0.8f, 30.0f, "Start_FlowersSE");
 
         // Nature accents on South and West perimeters
-        addDecor(m_mfTreeModel, Aion::Vector3(2.8f, 0.0f, -2.6f), 0.95f, 110.0f, "Start_TreeS");
-        addDecor(m_pkPlantModel, Aion::Vector3(2.2f, 0.0f, -2.8f), 0.9f, 0.0f, "Start_PlantS");
-        addDecor(m_pkFlowersTallModel, Aion::Vector3(-2.6f, 0.0f, -1.8f), 0.85f, -70.0f, "Start_FlowersW");
-        addDecor(m_pkGrassModel, Aion::Vector3(1.4f, 0.0f, 2.8f), 1.0f, 30.0f, "Start_GrassNE");
+        addDecor(m_mfTreeModel, Aion::Vector3(2.4f, 0.0f, -2.4f), 0.95f, 110.0f, "Start_TreeS");
+        addDecor(m_pkPlantModel, Aion::Vector3(2.0f, 0.0f, -2.6f), 0.9f, 0.0f, "Start_PlantS");
+        addDecor(m_pkFlowersTallModel, Aion::Vector3(-2.4f, 0.0f, -1.8f), 0.85f, -70.0f, "Start_FlowersW");
+        addDecor(m_pkGrassModel, Aion::Vector3(1.4f, 0.0f, 2.6f), 1.0f, 30.0f, "Start_GrassNE");
 
         Aion::Vector3 entryPoint{m_config.Player.SpawnPosition.x, 0.0f, m_config.Player.SpawnPosition.z};
         Aion::Vector3 exitPoint{-6.72f, 0.0f, -6.72f}; // Visible 1.45 unit gap, no overlap with StartPlatform
         m_lastExitPoint = exitPoint;
+
+        // Environmental side decorations and background platforms framing Starting Plaza flanks
+        SpawnSegmentSideDecorations(0, 1, entryPoint, exitPoint, decorObjs);
 
         auto startSegment = std::make_shared<LevelSegment>(
             0,
@@ -2834,10 +2961,10 @@ namespace BlockJumper
             if (d) decorObjs.push_back(d);
         };
 
-        // Determine corner flank offset (leaving landing center clear)
-        // 4 corner flanks: NW, NE, SW, SE
-        const float offX = 0.36f * plat.Dimensions.x;
-        const float offZ = 0.36f * plat.Dimensions.z;
+        // Determine corner flank offset (leaving landing center clear and inside platform bounds)
+        // 4 corner flanks: NW, NE, SW, SE (inset 0.30 to avoid edge clipping)
+        const float offX = 0.30f * plat.Dimensions.x;
+        const float offZ = 0.30f * plat.Dimensions.z;
         const Aion::Vector3 cornerOffsets[4] = {
             Aion::Vector3(-offX, 0.0f,  offZ), // NW
             Aion::Vector3( offX, 0.0f,  offZ), // NE
@@ -2849,7 +2976,7 @@ namespace BlockJumper
         Aion::Vector3 primaryPos = plat.Position + cornerOffsets[chosenCorner];
         primaryPos.y = topY;
 
-        // Large platforms (>= 3.2m): 6 distinct multi-object compositions
+        // Large platforms (>= 3.2m): 6 distinct multi-object nature compositions (rocks, trees, flowers only)
         if (minDim >= 3.2f)
         {
             const int numLargeCompositions = 6;
@@ -2875,101 +3002,100 @@ namespace BlockJumper
 
             switch (chosenComp)
             {
-                case 0: // Composition 0: Mushroom Grove
+                case 0: // Composition 0: Rock & Tall Flowers
                 {
                     if (difficulty <= 3) // Grassland
                     {
-                        addPlatDecor(m_pkMushroomsModel, primaryPos, 0.95f * scaleJitter(platRng), baseRot, "Decor_Mushrooms");
-                        Aion::Vector3 subPos = primaryPos + Aion::Vector3(0.32f, 0.0f, -0.28f);
-                        addPlatDecor(m_pkPlantModel, subPos, 0.82f * scaleJitter(platRng), baseRot + 45.0f, "Decor_MushroomPlant");
+                        addPlatDecor(m_pkRocksModel, primaryPos, 0.85f * scaleJitter(platRng), baseRot, "Decor_Boulders");
+                        Aion::Vector3 subPos = primaryPos + Aion::Vector3(0.30f, 0.0f, -0.26f);
+                        addPlatDecor(m_pkFlowersTallModel, subPos, 0.82f * scaleJitter(platRng), baseRot + 45.0f, "Decor_TallFlowers");
                     }
                     else // Snow
                     {
-                        addPlatDecor(m_pkRocksModel, primaryPos, 0.95f * scaleJitter(platRng), baseRot, "Decor_SnowBoulders");
-                        Aion::Vector3 subPos = primaryPos + Aion::Vector3(0.32f, 0.0f, -0.28f);
+                        addPlatDecor(m_pkRocksModel, primaryPos, 0.90f * scaleJitter(platRng), baseRot, "Decor_SnowBoulders");
+                        Aion::Vector3 subPos = primaryPos + Aion::Vector3(0.30f, 0.0f, -0.26f);
                         addPlatDecor(m_mfStonesModel, subPos, 0.85f * scaleJitter(platRng), baseRot + 60.0f, "Decor_SnowStones");
                     }
                     break;
                 }
-                case 1: // Composition 1: Adventurer Supply Cache
+                case 1: // Composition 1: Shrub & Wildflowers
                 {
                     if (difficulty <= 3) // Grassland
                     {
-                        addPlatDecor(m_pkCrateModel, primaryPos, 0.85f * scaleJitter(platRng), baseRot, "Decor_Crate");
-                        Aion::Vector3 subPos = primaryPos + Aion::Vector3(-0.30f, 0.0f, 0.28f);
-                        addPlatDecor(m_pkFenceBrokenModel, subPos, 0.80f * scaleJitter(platRng), baseRot + 90.0f, "Decor_BrokenFence");
+                        addPlatDecor(m_pkPlantModel, primaryPos, 0.90f * scaleJitter(platRng), baseRot, "Decor_Bush");
+                        Aion::Vector3 subPos = primaryPos + Aion::Vector3(-0.28f, 0.0f, 0.26f);
+                        addPlatDecor(m_pkFlowersModel, subPos, 0.82f * scaleJitter(platRng), baseRot + 80.0f, "Decor_Flowers");
                     }
                     else // Snow
                     {
-                        addPlatDecor(m_pkCrateModel, primaryPos, 0.85f * scaleJitter(platRng), baseRot, "Decor_SnowCrate");
-                        Aion::Vector3 subPos = primaryPos + Aion::Vector3(-0.30f, 0.0f, 0.28f);
-                        addPlatDecor(m_pkRocksModel, subPos, 0.78f * scaleJitter(platRng), baseRot + 45.0f, "Decor_SnowRocks");
+                        addPlatDecor(m_mfRocksLowModel, primaryPos, 0.85f * scaleJitter(platRng), baseRot, "Decor_SnowRocksLow");
+                        Aion::Vector3 subPos = primaryPos + Aion::Vector3(-0.28f, 0.0f, 0.26f);
+                        addPlatDecor(m_pkStonesModel, subPos, 0.80f * scaleJitter(platRng), baseRot + 45.0f, "Decor_SnowStones");
                     }
                     break;
                 }
-                case 2: // Composition 2: Shrubbery & Wildflowers
+                case 2: // Composition 2: Sentinel Mini-Pine & Flowers
                 {
                     if (difficulty <= 3) // Grassland
                     {
-                        addPlatDecor(m_pkPlantModel, primaryPos, 1.05f * scaleJitter(platRng), baseRot, "Decor_Bush");
-                        Aion::Vector3 subPos = primaryPos + Aion::Vector3(0.28f, 0.0f, 0.32f);
-                        addPlatDecor(m_pkFlowersTallModel, subPos, 0.90f * scaleJitter(platRng), baseRot + 120.0f, "Decor_TallFlowers");
+                        addPlatDecor(m_pkTreePineSmallModel, primaryPos, 0.58f * scaleJitter(platRng), baseRot, "Decor_MiniPine");
+                        Aion::Vector3 subPos = primaryPos + Aion::Vector3(0.28f, 0.0f, 0.28f);
+                        addPlatDecor(m_pkFlowersTallModel, subPos, 0.80f * scaleJitter(platRng), baseRot + 120.0f, "Decor_PineFlowers");
                     }
                     else // Snow
                     {
-                        addPlatDecor(m_pkTreePineSnowSmallModel, primaryPos, 0.72f * scaleJitter(platRng), baseRot, "Decor_SnowPineSmall");
-                        Aion::Vector3 subPos = primaryPos + Aion::Vector3(0.28f, 0.0f, 0.32f);
-                        addPlatDecor(m_mfStonesModel, subPos, 0.82f * scaleJitter(platRng), baseRot + 45.0f, "Decor_SnowPineStones");
+                        addPlatDecor(m_pkTreePineSnowSmallModel, primaryPos, 0.58f * scaleJitter(platRng), baseRot, "Decor_SnowPineSmall");
+                        Aion::Vector3 subPos = primaryPos + Aion::Vector3(0.28f, 0.0f, 0.28f);
+                        addPlatDecor(m_pkRocksModel, subPos, 0.75f * scaleJitter(platRng), baseRot + 45.0f, "Decor_SnowPineRocks");
                     }
                     break;
                 }
-                case 3: // Composition 3: Rustic Trail Fence Border
-                {
-                    float fenceRot = (chosenCorner % 2 == 0) ? 0.0f : 90.0f;
-                    if (difficulty <= 3) // Grassland
-                    {
-                        addPlatDecor(m_pkFenceLowModel, primaryPos, 0.85f * scaleJitter(platRng), fenceRot, "Decor_FenceLow");
-                        Aion::Vector3 subPos = primaryPos + Aion::Vector3(-0.32f, 0.0f, -0.22f);
-                        addPlatDecor(m_pkGrassModel, subPos, 0.90f * scaleJitter(platRng), baseRot, "Decor_FenceGrass");
-                    }
-                    else // Snow
-                    {
-                        addPlatDecor(m_pkFenceBrokenModel, primaryPos, 0.85f * scaleJitter(platRng), fenceRot, "Decor_SnowFence");
-                        Aion::Vector3 subPos = primaryPos + Aion::Vector3(-0.32f, 0.0f, -0.22f);
-                        addPlatDecor(m_pkRocksModel, subPos, 0.75f * scaleJitter(platRng), baseRot, "Decor_SnowFenceRock");
-                    }
-                    break;
-                }
-                case 4: // Composition 4: Boulder & Fungi Outcrop
+                case 3: // Composition 3: Craggy Rock & Stones
                 {
                     if (difficulty <= 3) // Grassland
                     {
-                        addPlatDecor(m_pkRocksModel, primaryPos, 0.95f * scaleJitter(platRng), baseRot, "Decor_Boulder");
-                        Aion::Vector3 subPos = primaryPos + Aion::Vector3(0.32f, 0.0f, -0.28f);
-                        addPlatDecor(m_pkMushroomsModel, subPos, 0.82f * scaleJitter(platRng), baseRot + 75.0f, "Decor_BoulderMushrooms");
+                        addPlatDecor(m_mfRocksHighModel, primaryPos, 0.65f * scaleJitter(platRng), baseRot, "Decor_RockHigh");
+                        Aion::Vector3 subPos = primaryPos + Aion::Vector3(-0.30f, 0.0f, -0.22f);
+                        addPlatDecor(m_mfStonesModel, subPos, 0.80f * scaleJitter(platRng), baseRot + 30.0f, "Decor_RockStones");
                     }
                     else // Snow
                     {
-                        addPlatDecor(m_pkRocksModel, primaryPos, 1.0f * scaleJitter(platRng), baseRot, "Decor_SnowBoulder");
-                        Aion::Vector3 subPos = primaryPos + Aion::Vector3(0.32f, 0.0f, -0.28f);
-                        addPlatDecor(m_mfRocksLowModel, subPos, 0.80f * scaleJitter(platRng), baseRot + 50.0f, "Decor_SnowBoulderLow");
+                        addPlatDecor(m_mfRocksHighModel, primaryPos, 0.65f * scaleJitter(platRng), baseRot, "Decor_SnowRockHigh");
+                        Aion::Vector3 subPos = primaryPos + Aion::Vector3(-0.30f, 0.0f, -0.22f);
+                        addPlatDecor(m_mfStonesModel, subPos, 0.80f * scaleJitter(platRng), baseRot + 40.0f, "Decor_SnowRockStones");
                     }
                     break;
                 }
-                case 5: // Composition 5: Sentinel Mini-Pine
+                case 4: // Composition 4: Boulder & Flowers
+                {
+                    if (difficulty <= 3) // Grassland
+                    {
+                        addPlatDecor(m_pkRocksModel, primaryPos, 0.88f * scaleJitter(platRng), baseRot, "Decor_Boulder");
+                        Aion::Vector3 subPos = primaryPos + Aion::Vector3(0.30f, 0.0f, -0.26f);
+                        addPlatDecor(m_pkFlowersModel, subPos, 0.82f * scaleJitter(platRng), baseRot + 75.0f, "Decor_BoulderFlowers");
+                    }
+                    else // Snow
+                    {
+                        addPlatDecor(m_pkRocksModel, primaryPos, 0.90f * scaleJitter(platRng), baseRot, "Decor_SnowBoulder");
+                        Aion::Vector3 subPos = primaryPos + Aion::Vector3(0.30f, 0.0f, -0.26f);
+                        addPlatDecor(m_mfRocksLowModel, subPos, 0.78f * scaleJitter(platRng), baseRot + 50.0f, "Decor_SnowBoulderLow");
+                    }
+                    break;
+                }
+                case 5: // Composition 5: Alpine Mini-Pine & Rocks
                 default:
                 {
                     if (difficulty <= 3) // Grassland
                     {
-                        addPlatDecor(m_pkTreePineSmallModel, primaryPos, 0.70f * scaleJitter(platRng), baseRot, "Decor_MiniPine");
-                        Aion::Vector3 subPos = primaryPos + Aion::Vector3(-0.28f, 0.0f, 0.30f);
-                        addPlatDecor(m_mfStonesModel, subPos, 0.80f * scaleJitter(platRng), baseRot + 90.0f, "Decor_MiniPineStones");
+                        addPlatDecor(m_pkTreePineSmallModel, primaryPos, 0.58f * scaleJitter(platRng), baseRot, "Decor_MiniPine");
+                        Aion::Vector3 subPos = primaryPos + Aion::Vector3(-0.26f, 0.0f, 0.28f);
+                        addPlatDecor(m_pkRocksModel, subPos, 0.75f * scaleJitter(platRng), baseRot + 90.0f, "Decor_MiniPineRocks");
                     }
                     else // Snow
                     {
-                        addPlatDecor(m_pkTreePineSnowSmallModel, primaryPos, 0.70f * scaleJitter(platRng), baseRot, "Decor_SnowMiniPine");
-                        Aion::Vector3 subPos = primaryPos + Aion::Vector3(-0.28f, 0.0f, 0.30f);
-                        addPlatDecor(m_mfStonesModel, subPos, 0.80f * scaleJitter(platRng), baseRot + 90.0f, "Decor_SnowMiniPineStones");
+                        addPlatDecor(m_pkTreePineSnowSmallModel, primaryPos, 0.58f * scaleJitter(platRng), baseRot, "Decor_SnowMiniPine");
+                        Aion::Vector3 subPos = primaryPos + Aion::Vector3(-0.26f, 0.0f, 0.28f);
+                        addPlatDecor(m_mfStonesModel, subPos, 0.78f * scaleJitter(platRng), baseRot + 90.0f, "Decor_SnowMiniPineStones");
                     }
                     break;
                 }
@@ -2994,7 +3120,7 @@ namespace BlockJumper
                 }
             }
         }
-        else // Standard platforms (2.2m <= minDim < 3.2m): 5 distinct moderate compositions
+        else // Standard platforms (2.2m <= minDim < 3.2m): 5 distinct moderate nature compositions (rocks, trees, flowers only)
         {
             const int numStdCompositions = 5;
             std::vector<int> candidates;
@@ -3019,11 +3145,11 @@ namespace BlockJumper
 
             switch (chosenComp)
             {
-                case 0: // Composition 0: Mushroom Accent
+                case 0: // Composition 0: Rock Outcrop Accent
                 {
                     if (difficulty <= 3)
                     {
-                        addPlatDecor(m_pkMushroomsModel, primaryPos, 0.85f * scaleJitter(platRng), baseRot, "Decor_StdMushrooms");
+                        addPlatDecor(m_pkRocksModel, primaryPos, 0.78f * scaleJitter(platRng), baseRot, "Decor_StdRocks");
                     }
                     else
                     {
@@ -3035,39 +3161,39 @@ namespace BlockJumper
                 {
                     if (difficulty <= 3)
                     {
-                        addPlatDecor(m_pkPlantModel, primaryPos, 0.88f * scaleJitter(platRng), baseRot, "Decor_StdBush");
+                        addPlatDecor(m_pkPlantModel, primaryPos, 0.85f * scaleJitter(platRng), baseRot, "Decor_StdBush");
                     }
                     else
                     {
-                        addPlatDecor(m_mfStonesModel, primaryPos, 0.85f * scaleJitter(platRng), baseRot, "Decor_StdSnowStones");
+                        addPlatDecor(m_mfStonesModel, primaryPos, 0.82f * scaleJitter(platRng), baseRot, "Decor_StdSnowStones");
                     }
                     break;
                 }
-                case 2: // Composition 2: Broken Wooden Fence
+                case 2: // Composition 2: Wildflower Accent
                 {
                     if (difficulty <= 3)
                     {
-                        addPlatDecor(m_pkFenceBrokenModel, primaryPos, 0.78f * scaleJitter(platRng), baseRot, "Decor_StdFence");
+                        addPlatDecor(m_pkFlowersModel, primaryPos, 0.82f * scaleJitter(platRng), baseRot, "Decor_StdFlowers");
                     }
                     else
                     {
-                        addPlatDecor(m_pkFenceBrokenModel, primaryPos, 0.78f * scaleJitter(platRng), baseRot, "Decor_StdSnowFence");
+                        addPlatDecor(m_mfRocksLowModel, primaryPos, 0.75f * scaleJitter(platRng), baseRot, "Decor_StdSnowRocksLow");
                     }
                     break;
                 }
-                case 3: // Composition 3: Wildflowers / Low Flora
+                case 3: // Composition 3: Mini-Pine Accent (compact scale, clear bounds)
                 {
                     if (difficulty <= 3)
                     {
-                        addPlatDecor(m_pkFlowersTallModel, primaryPos, 0.85f * scaleJitter(platRng), baseRot, "Decor_StdFlowers");
+                        addPlatDecor(m_pkTreePineSmallModel, primaryPos, 0.50f * scaleJitter(platRng), baseRot, "Decor_StdMiniPine");
                     }
                     else
                     {
-                        addPlatDecor(m_mfRocksLowModel, primaryPos, 0.78f * scaleJitter(platRng), baseRot, "Decor_StdRocksLow");
+                        addPlatDecor(m_pkTreePineSnowSmallModel, primaryPos, 0.50f * scaleJitter(platRng), baseRot, "Decor_StdSnowMiniPine");
                     }
                     break;
                 }
-                case 4: // Composition 4: Light Accent / Clean Surface
+                case 4: // Composition 4: Grass / Stones / Clean Surface
                 default:
                 {
                     if ((seed % 2) == 0)
@@ -3088,101 +3214,307 @@ namespace BlockJumper
         }
     }
 
-    void LevelManager::SpawnSegmentScenery(
+    void LevelManager::SpawnFloatingIsland(
+        const Aion::Vector3& centerPos,
+        float baseScale,
+        float rotYDegrees,
+        IslandType type,
+        int difficulty,
+        int segmentIndex,
+        std::vector<std::shared_ptr<Aion::Object3D>>& decorObjs)
+    {
+        auto addIslandPart = [&](const std::shared_ptr<Aion::Model>& model,
+                                 const Aion::Vector3& pos,
+                                 float scale,
+                                 float rotY,
+                                 const std::string& name) {
+            if (!model) return;
+            auto d = CreateDecorObject(model, pos, scale, rotY, name);
+            if (d) decorObjs.push_back(d);
+        };
+
+        std::string prefix = "DecorSide_Island_S" + std::to_string(segmentIndex) + "_";
+        bool isSnow = (difficulty >= 4);
+
+        // Height of core tall foundation block (model baseHeight=2.0)
+        float coreH = 2.0f * baseScale;
+        float topY = centerPos.y + coreH;
+
+        float rad = Aion::Math::Radians(rotYDegrees);
+        float cosR = std::cos(rad);
+        float sinR = std::sin(rad);
+        auto rotateOffset = [cosR, sinR](float lx, float lz) -> std::pair<float, float> {
+            return {lx * cosR - lz * sinR, lx * sinR + lz * cosR};
+        };
+
+        switch (type)
+        {
+            case IslandType::AncientGrove:
+            {
+                // --- 1. Big Platform Foundation (The bottom / land IS the platform) ---
+                auto coreModel = isSnow ? (m_pkSnowOverhangTallModel ? m_pkSnowOverhangTallModel : m_snowLargeModel)
+                                        : (m_pkGrassOverhangTallModel ? m_pkGrassOverhangTallModel : m_grassLargeModel);
+                addIslandPart(coreModel, centerPos, baseScale, rotYDegrees, prefix + "PlatCore_AncientGrove");
+
+                // --- 2. Trees (Strictly on the big platform plateau, clean clearance) ---
+                auto tree1Model = isSnow ? m_pkTreePineSnowModel : m_mfTreeHighModel;
+                addIslandPart(tree1Model, Aion::Vector3(centerPos.x, topY, centerPos.z),
+                              2.4f, rotYDegrees + 20.0f, prefix + "TreeCenter_AncientGrove");
+
+                auto [t2x, t2z] = rotateOffset(1.1f, 0.9f);
+                auto tree2Model = isSnow ? m_pkTreeSnowModel : m_mfTreeModel;
+                addIslandPart(tree2Model, Aion::Vector3(centerPos.x + t2x, topY, centerPos.z + t2z),
+                              1.6f, rotYDegrees + 110.0f, prefix + "TreeSub_AncientGrove");
+
+                // --- 3. Flora & Flowers (Strictly plants and flowers, no rocks/stones) ---
+                auto [b1x, b1z] = rotateOffset(-1.0f, -0.8f);
+                addIslandPart(m_mfPlantModel, Aion::Vector3(centerPos.x + b1x, topY, centerPos.z + b1z),
+                              1.8f, rotYDegrees + 75.0f, prefix + "PlantFern_AncientGrove");
+
+                auto [flx, flz] = rotateOffset(0.9f, -1.0f);
+                addIslandPart(m_pkFlowersTallModel, Aion::Vector3(centerPos.x + flx, topY, centerPos.z + flz),
+                              1.6f, rotYDegrees + 30.0f, prefix + "FlowersTall_AncientGrove");
+
+                auto [f2x, f2z] = rotateOffset(-0.8f, 1.0f);
+                addIslandPart(m_pkFlowersModel, Aion::Vector3(centerPos.x + f2x, topY, centerPos.z + f2z),
+                              1.5f, rotYDegrees + 60.0f, prefix + "FlowersLow_AncientGrove");
+                break;
+            }
+
+            case IslandType::CliffSanctuary:
+            {
+                // --- 1. Big Platform Foundation (The bottom / land IS the platform) ---
+                auto coreModel = isSnow ? (m_pkSnowLargeTallModel ? m_pkSnowLargeTallModel : m_snowLargeModel)
+                                        : (m_pkGrassLargeTallModel ? m_pkGrassLargeTallModel : m_grassLargeModel);
+                addIslandPart(coreModel, centerPos, baseScale, rotYDegrees, prefix + "PlatCore_CliffSanctuary");
+
+                // --- 2. Trees (Strictly on the big platform plateau, clean clearance) ---
+                auto tree1Model = isSnow ? m_pkTreePineSnowModel : m_mfTreeHighModel;
+                addIslandPart(tree1Model, Aion::Vector3(centerPos.x, topY, centerPos.z),
+                              2.4f, rotYDegrees + 40.0f, prefix + "TreeTower_CliffSanctuary");
+
+                auto [t2x, t2z] = rotateOffset(-1.0f, -0.9f);
+                auto tree2Model = isSnow ? m_pkTreeSnowModel : m_pkTreePineModel;
+                addIslandPart(tree2Model, Aion::Vector3(centerPos.x + t2x, topY, centerPos.z + t2z),
+                              1.6f, rotYDegrees + 150.0f, prefix + "TreePine_CliffSanctuary");
+
+                // --- 3. Flora & Flowers (Strictly plants and flowers, no rocks/stones) ---
+                auto [b1x, b1z] = rotateOffset(-0.9f, 1.0f);
+                addIslandPart(m_mfPlantModel, Aion::Vector3(centerPos.x + b1x, topY, centerPos.z + b1z),
+                              1.8f, rotYDegrees + 200.0f, prefix + "PlantFern_CliffSanctuary");
+
+                auto [flx, flz] = rotateOffset(0.9f, -0.9f);
+                auto floraModel = isSnow ? m_pkTreePineSnowSmallModel : m_pkFlowersTallModel;
+                addIslandPart(floraModel, Aion::Vector3(centerPos.x + flx, topY, centerPos.z + flz),
+                              1.6f, rotYDegrees + 30.0f, prefix + "Flora_CliffSanctuary");
+
+                auto [f1x, f1z] = rotateOffset(1.0f, 0.9f);
+                addIslandPart(m_pkFlowersModel, Aion::Vector3(centerPos.x + f1x, topY, centerPos.z + f1z),
+                              1.5f, rotYDegrees + 45.0f, prefix + "Flowers_CliffSanctuary");
+                break;
+            }
+
+            case IslandType::ExpeditionCamp:
+            {
+                // --- 1. Big Platform Foundation (The bottom / land IS the platform) ---
+                auto coreModel = isSnow ? (m_pkSnowOverhangTallModel ? m_pkSnowOverhangTallModel : m_snowLargeModel)
+                                        : (m_pkGrassOverhangTallModel ? m_pkGrassOverhangTallModel : m_grassLargeModel);
+                addIslandPart(coreModel, centerPos, baseScale, rotYDegrees, prefix + "PlatCore_ExpeditionCamp");
+
+                // --- 2. Trees (Strictly on the big platform plateau, clean clearance) ---
+                auto tree1Model = isSnow ? m_pkTreePineSnowModel : m_mfTreeHighModel;
+                addIslandPart(tree1Model, Aion::Vector3(centerPos.x, topY, centerPos.z),
+                              2.4f, rotYDegrees + 10.0f, prefix + "TreeHigh_ExpeditionCamp");
+
+                auto [t2x, t2z] = rotateOffset(1.1f, -0.9f);
+                auto tree2Model = isSnow ? m_pkTreeSnowModel : m_mfTreeModel;
+                addIslandPart(tree2Model, Aion::Vector3(centerPos.x + t2x, topY, centerPos.z + t2z),
+                              1.6f, rotYDegrees + 130.0f, prefix + "TreeSub_ExpeditionCamp");
+
+                // --- 3. Flora & Flowers (Strictly plants and flowers, no rocks/stones) ---
+                auto [bx, bz] = rotateOffset(0.8f, 0.9f);
+                addIslandPart(m_mfPlantModel, Aion::Vector3(centerPos.x + bx, topY, centerPos.z + bz),
+                              1.8f, rotYDegrees + 175.0f, prefix + "PlantBush_ExpeditionCamp");
+
+                auto [fl1x, fl1z] = rotateOffset(-0.9f, 0.9f);
+                addIslandPart(m_pkFlowersTallModel, Aion::Vector3(centerPos.x + fl1x, topY, centerPos.z + fl1z),
+                              1.6f, rotYDegrees + 60.0f, prefix + "Flowers_ExpeditionCamp");
+
+                auto [fl2x, fl2z] = rotateOffset(-1.0f, -0.8f);
+                addIslandPart(m_pkFlowersModel, Aion::Vector3(centerPos.x + fl2x, topY, centerPos.z + fl2z),
+                              1.5f, rotYDegrees + 15.0f, prefix + "FlowersSub_ExpeditionCamp");
+                break;
+            }
+
+            case IslandType::WildflowerRidge:
+            {
+                // --- 1. Big Platform Foundation (The bottom / land IS the platform) ---
+                auto coreModel = isSnow ? (m_pkSnowLargeTallModel ? m_pkSnowLargeTallModel : m_snowLargeModel)
+                                        : (m_pkGrassLargeTallModel ? m_pkGrassLargeTallModel : m_grassLargeModel);
+                addIslandPart(coreModel, centerPos, baseScale, rotYDegrees, prefix + "PlatCore_WildflowerRidge");
+
+                // --- 2. Trees (Strictly on the big platform plateau, clean clearance) ---
+                auto tree1Model = isSnow ? m_pkTreePineSnowModel : m_mfTreeHighModel;
+                addIslandPart(tree1Model, Aion::Vector3(centerPos.x, topY, centerPos.z),
+                              2.4f, rotYDegrees + 45.0f, prefix + "TreeCenter_WildflowerRidge");
+
+                auto [t2x, t2z] = rotateOffset(-1.1f, -0.9f);
+                auto pineModel = isSnow ? m_pkTreePineSnowSmallModel : m_pkTreePineModel;
+                addIslandPart(pineModel, Aion::Vector3(centerPos.x + t2x, topY, centerPos.z + t2z),
+                              1.6f, rotYDegrees + 250.0f, prefix + "TreePine_WildflowerRidge");
+
+                // --- 3. Flora & Flowers (Strictly plants and flowers, no rocks/stones) ---
+                auto [fl1x, fl1z] = rotateOffset(1.0f, -0.8f);
+                auto flowersModel = isSnow ? m_pkFlowersModel : m_pkFlowersTallModel;
+                addIslandPart(flowersModel, Aion::Vector3(centerPos.x + fl1x, topY, centerPos.z + fl1z),
+                              1.8f, rotYDegrees + 80.0f, prefix + "Flowers_WildflowerRidge");
+
+                auto [fl2x, fl2z] = rotateOffset(-0.8f, 0.9f);
+                addIslandPart(m_pkFlowersModel, Aion::Vector3(centerPos.x + fl2x, topY, centerPos.z + fl2z),
+                              1.6f, rotYDegrees + 130.0f, prefix + "FlowersLow_WildflowerRidge");
+
+                auto [bx, bz] = rotateOffset(0.8f, 1.0f);
+                addIslandPart(m_mfPlantModel, Aion::Vector3(centerPos.x + bx, topY, centerPos.z + bz),
+                              1.7f, rotYDegrees + 310.0f, prefix + "PlantFern_WildflowerRidge");
+                break;
+            }
+
+            case IslandType::DistantHorizon:
+            default:
+            {
+                // --- 1. Big Platform Foundation (The bottom / land IS the platform) ---
+                auto coreModel = isSnow ? (m_pkSnowOverhangTallModel ? m_pkSnowOverhangTallModel : m_snowLargeModel)
+                                        : (m_pkGrassOverhangTallModel ? m_pkGrassOverhangTallModel : m_grassLargeModel);
+                addIslandPart(coreModel, centerPos, baseScale * 1.15f, rotYDegrees, prefix + "PlatCore_DistantHorizon");
+
+                // --- 2. Trees (Strictly on the big platform plateau, clean clearance) ---
+                auto treeModel = isSnow ? m_pkTreePineSnowModel : m_mfTreeHighModel;
+                addIslandPart(treeModel, Aion::Vector3(centerPos.x, topY, centerPos.z),
+                              2.6f, rotYDegrees, prefix + "TreeMonument_DistantHorizon");
+
+                auto [t2x, t2z] = rotateOffset(1.2f, 0.9f);
+                auto tree2Model = isSnow ? m_pkTreeSnowModel : m_mfTreeModel;
+                addIslandPart(tree2Model, Aion::Vector3(centerPos.x + t2x, topY, centerPos.z + t2z),
+                              1.8f, rotYDegrees + 120.0f, prefix + "TreeSub_DistantHorizon");
+
+                // --- 3. Flora & Flowers (Strictly plants and flowers, no rocks/stones) ---
+                auto [bx, bz] = rotateOffset(-1.0f, 1.0f);
+                addIslandPart(m_mfPlantModel, Aion::Vector3(centerPos.x + bx, topY, centerPos.z + bz),
+                              2.0f, rotYDegrees + 180.0f, prefix + "PlantHuge_DistantHorizon");
+
+                auto [flx, flz] = rotateOffset(1.0f, -0.9f);
+                addIslandPart(m_pkFlowersTallModel, Aion::Vector3(centerPos.x + flx, topY, centerPos.z + flz),
+                              1.7f, rotYDegrees + 80.0f, prefix + "Flowers_DistantHorizon");
+
+                auto [fl2x, fl2z] = rotateOffset(-0.9f, -1.0f);
+                addIslandPart(m_pkFlowersModel, Aion::Vector3(centerPos.x + fl2x, topY, centerPos.z + fl2z),
+                              1.6f, rotYDegrees + 220.0f, prefix + "FlowersSub_DistantHorizon");
+                break;
+            }
+        }
+    }
+
+    void LevelManager::SpawnSegmentSideDecorations(
         int segmentIndex,
         int difficulty,
         const Aion::Vector3& entryPoint,
         const Aion::Vector3& exitPoint,
         std::vector<std::shared_ptr<Aion::Object3D>>& decorObjs)
     {
+        // Special handling for Starting Plaza (segmentIndex == 0)
+        if (segmentIndex == 0)
+        {
+            // Left flank giant floating forest island (Ancient Grove) - clear lateral gap >= 16m
+            SpawnFloatingIsland(Aion::Vector3(-14.0f, -5.5f, 9.5f), 2.2f, 35.0f,
+                                IslandType::AncientGrove, difficulty, 0, decorObjs);
+
+            // Right flank expedition campsite floating island - clear lateral gap >= 17m
+            SpawnFloatingIsland(Aion::Vector3(10.5f, -5.5f, -14.0f), 2.2f, -40.0f,
+                                IslandType::ExpeditionCamp, difficulty, 0, decorObjs);
+
+            // Deep background distant horizon floating island (safely positioned on distant vista with 28m+ gap)
+            SpawnFloatingIsland(Aion::Vector3(-26.0f, -6.8f, 15.0f), 2.4f, 120.0f,
+                                IslandType::DistantHorizon, difficulty, 0, decorObjs);
+            return;
+        }
+
         Aion::Vector3 forward = exitPoint - entryPoint;
         float lenXZ = std::sqrt(forward.x * forward.x + forward.z * forward.z);
         if (lenXZ < 1.0f) lenXZ = 1.0f;
         Aion::Vector3 fwdNorm = Aion::Vector3(forward.x / lenXZ, 0.0f, forward.z / lenXZ);
         // Perpendicular horizontal right vector
         Aion::Vector3 rightNorm = Aion::Vector3(fwdNorm.z, 0.0f, -fwdNorm.x);
+        float baseY = std::min(entryPoint.y, exitPoint.y);
 
-        uint32_t seed = static_cast<uint32_t>(segmentIndex * 1337 + difficulty * 997);
+        // Deterministic pseudo-random number generator for controlled variety
+        uint32_t seed = static_cast<uint32_t>(segmentIndex * 2654435761u + difficulty * 1013904223u + 77);
         std::mt19937 rng(seed);
-        std::uniform_real_distribution<float> distOffset(5.5f, 8.5f);
-        std::uniform_real_distribution<float> distY(-1.8f, -0.6f);
-        std::uniform_real_distribution<float> distScale(0.85f, 1.25f);
-        std::uniform_real_distribution<float> distRot(0.0f, 360.0f);
+        std::uniform_real_distribution<float> rotDist(0.0f, 360.0f);
+        std::uniform_real_distribution<float> scaleJitter(2.05f, 2.35f);
 
-        auto addScenery = [&](const std::shared_ptr<Aion::Model>& model, const Aion::Vector3& pos, float scale, float rotY, const std::string& name) {
-            auto d = CreateDecorObject(model, pos, scale, rotY, name);
-            if (d) decorObjs.push_back(d);
+        auto ensureSafeIslandPos = [&](Aion::Vector3 pos, float sideSign) -> Aion::Vector3 {
+            // Strictly enforce visible separation gap (at least 9.0m from any platform boundary)
+            constexpr float minSafeGap = 9.0f;
+            for (const auto& plat : m_activePlatforms)
+            {
+                float dx = pos.x - plat.Position.x;
+                float dz = pos.z - plat.Position.z;
+                float distXZ = std::sqrt(dx * dx + dz * dz);
+                float platRadius = 0.5f * std::max(plat.Dimensions.x, plat.Dimensions.z);
+                float requiredDist = platRadius + 4.5f + minSafeGap;
+                if (distXZ < requiredDist)
+                {
+                    float pushAmount = requiredDist - distXZ;
+                    pos = pos + rightNorm * (sideSign * pushAmount);
+                }
+            }
+            return pos;
         };
 
-        // --- Cluster 1: Right-flank scenery (~30% along segment) ---
+        // 1. LEFT FLANK FLOATING ISLAND (t ~ 0.22 to 0.42, lateral 15.0m to 18.0m)
         {
-            float t = 0.30f;
-            float rDist = distOffset(rng);
-            Aion::Vector3 basePos = entryPoint + fwdNorm * (lenXZ * t) + rightNorm * rDist;
-            basePos.y = entryPoint.y + distY(rng);
+            float tL = 0.22f + 0.20f * (static_cast<float>(rng() % 100) / 100.0f);
+            float latL = 15.0f + 3.0f * (static_cast<float>(rng() % 100) / 100.0f);
+            Aion::Vector3 posL = entryPoint + fwdNorm * (lenXZ * tL) - rightNorm * latL;
+            posL.y = baseY - 5.5f - 0.35f * static_cast<float>(rng() % 3);
+            posL = ensureSafeIslandPos(posL, -1.0f);
 
-            if (difficulty <= 3) // Grassland / Forest
-            {
-                addScenery(m_mfRocksHighModel, basePos, 1.2f, distRot(rng), "Scenery_RockR");
-                Aion::Vector3 treePos1 = basePos + Aion::Vector3(0.2f, 0.5f, 0.1f);
-                addScenery(m_mfTreeHighModel, treePos1, distScale(rng), distRot(rng), "Scenery_TreeHighR");
-                Aion::Vector3 plantPos = basePos + Aion::Vector3(-0.5f, 0.5f, 0.4f);
-                addScenery(m_mfPlantModel, plantPos, 1.0f, distRot(rng), "Scenery_PlantR");
-            }
-            else // Snow / Mountain
-            {
-                addScenery(m_mfRocksHighModel, basePos, 1.4f, distRot(rng), "Scenery_SnowCragR");
-                Aion::Vector3 pinePos = basePos + Aion::Vector3(0.2f, 0.6f, 0.0f);
-                addScenery(m_pkTreePineSnowModel, pinePos, distScale(rng), distRot(rng), "Scenery_SnowPineR");
-                Aion::Vector3 rockPos = basePos + Aion::Vector3(-0.4f, 0.6f, 0.3f);
-                addScenery(m_pkRocksModel, rockPos, 0.9f, distRot(rng), "Scenery_SnowRocksR");
-            }
+            IslandType typeL = static_cast<IslandType>(segmentIndex % 4);
+            SpawnFloatingIsland(posL, scaleJitter(rng), rotDist(rng), typeL, difficulty, segmentIndex, decorObjs);
         }
 
-        // --- Cluster 2: Left-flank scenery (~70% along segment, sitting in background) ---
+        // 2. RIGHT FLANK FLOATING ISLAND (t ~ 0.58 to 0.78, lateral 15.0m to 18.0m)
         {
-            float t = 0.70f;
-            float lDist = distOffset(rng);
-            Aion::Vector3 basePos = entryPoint + fwdNorm * (lenXZ * t) - rightNorm * lDist;
-            basePos.y = entryPoint.y + distY(rng);
+            float tR = 0.58f + 0.20f * (static_cast<float>(rng() % 100) / 100.0f);
+            float latR = 15.0f + 3.0f * (static_cast<float>(rng() % 100) / 100.0f);
+            Aion::Vector3 posR = entryPoint + fwdNorm * (lenXZ * tR) + rightNorm * latR;
+            posR.y = baseY - 5.5f - 0.35f * static_cast<float>(rng() % 3);
+            posR = ensureSafeIslandPos(posR, 1.0f);
 
-            if (difficulty <= 3) // Grassland / Forest
-            {
-                addScenery(m_mfRocksLowModel, basePos, 1.3f, distRot(rng), "Scenery_RockL");
-                Aion::Vector3 treePos = basePos + Aion::Vector3(-0.2f, 0.3f, -0.2f);
-                addScenery(m_mfTreeModel, treePos, distScale(rng), distRot(rng), "Scenery_TreeL");
-                Aion::Vector3 stonePos = basePos + Aion::Vector3(0.5f, 0.3f, 0.3f);
-                addScenery(m_mfStonesModel, stonePos, 1.0f, distRot(rng), "Scenery_StonesL");
-            }
-            else // Snow / Mountain
-            {
-                addScenery(m_mfRocksHighModel, basePos, 1.5f, distRot(rng), "Scenery_SnowCragL");
-                Aion::Vector3 snowTreePos = basePos + Aion::Vector3(0.0f, 0.6f, 0.0f);
-                addScenery(m_pkTreePineSnowSmallModel, snowTreePos, distScale(rng), distRot(rng), "Scenery_SnowPineSmallL");
-                Aion::Vector3 rockPos = basePos + Aion::Vector3(0.5f, 0.6f, -0.4f);
-                addScenery(m_pkRocksModel, rockPos, 1.1f, distRot(rng), "Scenery_SnowRocksL");
-            }
+            IslandType typeR = static_cast<IslandType>((segmentIndex + 2) % 4);
+            SpawnFloatingIsland(posR, scaleJitter(rng), rotDist(rng), typeR, difficulty, segmentIndex, decorObjs);
         }
 
-        // --- Cluster 3: Distant environmental silhouette (every 2nd segment) ---
-        if (segmentIndex % 2 == 1)
+        // 3. DEEP HORIZON VISTA ISLAND (every 2nd segment, alternating flank)
+        if (segmentIndex % 2 == 0)
         {
-            float distLateral = (segmentIndex % 4 == 1) ? 12.0f : -12.0f;
-            Aion::Vector3 distPos = entryPoint + fwdNorm * (lenXZ * 0.5f) + rightNorm * distLateral;
-            distPos.y = entryPoint.y - 2.5f;
+            float tFar = 0.15f + 0.20f * (static_cast<float>(rng() % 100) / 100.0f);
+            float latFar = 23.0f + 4.0f * (static_cast<float>(rng() % 100) / 100.0f);
+            Aion::Vector3 posFar = entryPoint + fwdNorm * (lenXZ * tFar) + rightNorm * latFar;
+            posFar.y = baseY - 6.8f;
+            posFar = ensureSafeIslandPos(posFar, 1.0f);
 
-            if (difficulty <= 3)
-            {
-                addScenery(m_mfRocksHighModel, distPos, 2.2f, distRot(rng), "Scenery_DistantMountain");
-                Aion::Vector3 dTreePos = distPos + Aion::Vector3(0.0f, 1.2f, 0.0f);
-                addScenery(m_mfTreeHighModel, dTreePos, 1.5f, distRot(rng), "Scenery_DistantTree");
-            }
-            else
-            {
-                addScenery(m_mfRocksHighModel, distPos, 2.8f, distRot(rng), "Scenery_DistantSnowPeak");
-                Aion::Vector3 dPinePos = distPos + Aion::Vector3(0.0f, 1.5f, 0.0f);
-                addScenery(m_pkTreePineSnowModel, dPinePos, 1.6f, distRot(rng), "Scenery_DistantSnowPine");
-            }
+            SpawnFloatingIsland(posFar, 2.4f, rotDist(rng), IslandType::DistantHorizon, difficulty, segmentIndex, decorObjs);
+        }
+        else
+        {
+            float tFar = 0.75f + 0.18f * (static_cast<float>(rng() % 100) / 100.0f);
+            float latFar = 23.0f + 4.0f * (static_cast<float>(rng() % 100) / 100.0f);
+            Aion::Vector3 posFar = entryPoint + fwdNorm * (lenXZ * tFar) - rightNorm * latFar;
+            posFar.y = baseY - 6.8f;
+            posFar = ensureSafeIslandPos(posFar, -1.0f);
+
+            SpawnFloatingIsland(posFar, 2.4f, rotDist(rng), IslandType::DistantHorizon, difficulty, segmentIndex, decorObjs);
         }
     }
 
@@ -3303,8 +3635,8 @@ namespace BlockJumper
             CreatePlatformDecorations(plat, targetDiff, segmentIndex, i, decorObjs);
         }
 
-        // Flanking Environmental Scenery
-        SpawnSegmentScenery(segmentIndex, targetDiff, worldEntryPoint, worldExitPoint, decorObjs);
+        // Environmental side decorations and background platforms filling empty peripheral regions
+        SpawnSegmentSideDecorations(segmentIndex, targetDiff, worldEntryPoint, worldExitPoint, decorObjs);
 
         m_lastExitPoint = worldExitPoint;
 
@@ -3327,21 +3659,6 @@ namespace BlockJumper
             : (m_segmentCumulativeStarts.back() + m_segmentLengths.back());
         m_segmentLengths.push_back(segLength);
         m_segmentCumulativeStarts.push_back(prevCumulative);
-
-        // Register level checkpoint on the first valid platform of the level
-        int firstSegOfLevel = (targetDiff - m_config.Difficulty.InitialDifficulty) * m_config.Difficulty.SegmentsPerDifficultyLevel;
-        if (targetDiff > m_currentCheckpoint.Level && segmentIndex >= firstSegOfLevel && !segment->GetPlatforms().empty())
-        {
-            for (const auto& p : segment->GetPlatforms())
-            {
-                if (!p.IsSolidObstacle)
-                {
-                    Aion::Vector3 spawnPos{p.Position.x, p.GetTopSurfaceY() + m_config.Player.HalfExtents.y, p.Position.z};
-                    RegisterCheckpoint(targetDiff, segmentIndex, spawnPos, prevCumulative);
-                    break;
-                }
-            }
-        }
 
         return segment;
     }
@@ -3428,6 +3745,21 @@ namespace BlockJumper
                                   << " -> Advanced to Level " << newDiff
                                   << " (" << GetDifficultyStageName(newDiff) << ")!" << std::endl;
                         m_lastReportedDifficulty = newDiff;
+
+                        if (newDiff > m_currentCheckpoint.Level)
+                        {
+                            for (const auto& p : seg->GetPlatforms())
+                            {
+                                if (!p.IsSolidObstacle && !p.IsMoving && !p.IsPeriodicHazard)
+                                {
+                                    Aion::Vector3 spawnPos{p.Position.x, p.GetTopSurfaceY() + m_config.Player.HalfExtents.y, p.Position.z};
+                                    float segStartDist = (m_currentSegmentIndex >= 0 && m_currentSegmentIndex < static_cast<int>(m_segmentCumulativeStarts.size()))
+                                        ? m_segmentCumulativeStarts[m_currentSegmentIndex] : m_forwardProgress;
+                                    RegisterCheckpoint(newDiff, m_currentSegmentIndex, spawnPos, segStartDist);
+                                    break;
+                                }
+                            }
+                        }
                     }
                 }
                 break;

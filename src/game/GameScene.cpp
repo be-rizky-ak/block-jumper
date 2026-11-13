@@ -224,6 +224,7 @@ namespace BlockJumper
         // -------------------------------------------------------------
         m_gameOverUI.Initialize();
         m_optionsUI.Initialize();
+        m_touchControls.Initialize();
         m_vfxSystem.Initialize();
         m_stageMilestoneTimer = 0.0f;
         m_lastDifficulty = 1;
@@ -242,9 +243,12 @@ namespace BlockJumper
         m_retryClip = Aion::AudioSystem::LoadClip(ResolveAsset(m_config.Audio.RetrySFXPath), Aion::AudioCategory::SFX, false);
         m_gameOverSoundPlayed = false;
         m_optionsUI.SetFeedbackClip(m_retryClip);
+        m_highestStageReached = std::max(1, m_saveManager.GetCheckpointLevel());
+        m_gameOverUI.SetLatestStageReached(m_highestStageReached);
         std::cout << "[GameScene] Audio SFX clips loaded (Jump: " << (m_jumpClip ? "OK" : "FAILED")
                   << ", GameOver: " << (m_gameOverClip ? "OK" : "FAILED")
-                  << ", Retry: " << (m_retryClip ? "OK" : "FAILED") << ")." << std::endl;
+                  << ", Retry: " << (m_retryClip ? "OK" : "FAILED")
+                  << ", Checkpoint Stage: " << m_highestStageReached << ")." << std::endl;
 
         std::cout << "[GameScene] Isometric scene setup complete. Initial state: Playing." << std::endl;
     }
@@ -261,9 +265,11 @@ namespace BlockJumper
         m_deathCount++;
 
         // Stop accepting movement and jump input
+        m_touchControls.ClearAllTouches();
         if (m_playerController)
         {
             m_playerController->SetInputEnabled(false);
+            m_playerController->ClearTouchInput();
         }
 
         float playerY = m_player ? m_player->Transform.Position.y : 0.0f;
@@ -308,11 +314,16 @@ namespace BlockJumper
                   << std::endl;
     }
 
-    void GameScene::TriggerRetry()
+    void GameScene::TriggerRetry(int targetStage)
     {
         if (m_gameState != GameState::GameOver)
         {
             return; // Disallow retry during Playing or Falling transition
+        }
+
+        if (targetStage <= 0)
+        {
+            targetStage = m_highestStageReached;
         }
 
         if (m_retryClip)
@@ -320,30 +331,47 @@ namespace BlockJumper
             Aion::AudioSystem::PlayOneShot(m_retryClip, 1.0f);
         }
 
-        ResetRun();
-        std::cout << "[GameState] Transition: GameOver -> Playing (Retry executed)." << std::endl;
+        ResetRun(targetStage);
+        std::cout << "[GameState] Transition: GameOver -> Playing (Retry executed for Stage " << targetStage << ")." << std::endl;
     }
 
-    void GameScene::ResetRun()
+    void GameScene::ResetRun(int targetStage)
     {
-        std::cout << "[GameScene] Executing coordinated run reset..." << std::endl;
+        if (targetStage <= 0)
+        {
+            targetStage = 1;
+        }
+
+        std::cout << "[GameScene] Executing coordinated run reset to Stage " << targetStage << "..." << std::endl;
 
         // 1. Reset Game State & Counters
         m_gameState = GameState::Playing;
         m_fallTimer = 0.0f;
         m_gameOverDuration = 0.0f;
         m_stageMilestoneTimer = 0.0f;
-        m_lastDifficulty = 1;
         m_finalRunDistance = 0.0f;
         m_isNewRecord = false;
         m_gameOverSoundPlayed = false;
         m_retryCount++;
         m_vfxSystem.Reset();
+        m_touchControls.Reset();
+
+        Aion::Vector3 spawnPos = m_config.Player.SpawnPosition;
+        if (targetStage > 1)
+        {
+            m_levelManager.ResetToStage(targetStage, spawnPos);
+        }
+        else
+        {
+            m_levelManager.Reset();
+        }
+
+        m_lastDifficulty = m_levelManager.GetCurrentDifficulty();
 
         // 2. Reset Player Kinematics, Velocity, and Orientation
         if (m_playerController && m_player)
         {
-            m_playerController->ResetKinematics(m_config.Player.SpawnPosition, -135.0f);
+            m_playerController->ResetKinematics(spawnPos, -135.0f);
         }
 
         if (m_playerAnimController)
@@ -357,9 +385,7 @@ namespace BlockJumper
             m_followCamera->SnapToTarget();
         }
 
-        // 4. Reinitialize Level Progression, Segment History, and Active Platforms
-        m_levelManager.Reset();
-
+        // 4. Update main platform reference
         if (!m_levelManager.GetActiveSegments().empty() &&
             !m_levelManager.GetActiveSegments().front()->GetSceneObjects().empty())
         {
@@ -372,14 +398,29 @@ namespace BlockJumper
             m_playerController->SetPlatforms(m_levelManager.GetActivePlatforms());
         }
 
-        // 6. Restore Grassland skybox on run reset
-        if (m_renderer && m_grassEnvMap && m_grassEnvMap->IsValid() && m_currentSkyboxTheme != SkyboxTheme::Grassland)
+        // 6. Synchronize skybox theme with stage difficulty
+        if (m_renderer)
         {
-            m_renderer->SetEnvironmentMap(m_grassEnvMap);
-            m_currentSkyboxTheme = SkyboxTheme::Grassland;
+            int diff = m_levelManager.GetCurrentDifficulty();
+            if (diff >= 4 && m_snowEnvMap && m_snowEnvMap->IsValid())
+            {
+                if (m_currentSkyboxTheme != SkyboxTheme::Snow)
+                {
+                    m_renderer->SetEnvironmentMap(m_snowEnvMap);
+                    m_currentSkyboxTheme = SkyboxTheme::Snow;
+                }
+            }
+            else if (diff < 4 && m_grassEnvMap && m_grassEnvMap->IsValid())
+            {
+                if (m_currentSkyboxTheme != SkyboxTheme::Grassland)
+                {
+                    m_renderer->SetEnvironmentMap(m_grassEnvMap);
+                    m_currentSkyboxTheme = SkyboxTheme::Grassland;
+                }
+            }
         }
 
-        std::cout << "[GameScene] Run reset complete. State: Playing. Restored to initial difficulty ("
+        std::cout << "[GameScene] Run reset complete. State: Playing. Restored to difficulty ("
                   << m_levelManager.GetDifficultyStageName(m_levelManager.GetCurrentDifficulty())
                   << ") with " << m_levelManager.GetActivePlatforms().size() << " initial platforms." << std::endl;
     }
@@ -408,6 +449,25 @@ namespace BlockJumper
             {
                 OpenOptions();
                 return;
+            }
+        }
+
+        // Update touch controls layout and input
+        bool blockGameplayTouch = (m_gameState != GameState::Playing);
+        m_touchControls.Update(deltaTime, screenWidth, screenHeight, blockGameplayTouch);
+
+        if (m_playerController)
+        {
+            if (m_gameState == GameState::Playing)
+            {
+                m_playerController->SetTouchInput(
+                    m_touchControls.GetForwardInput(),
+                    m_touchControls.GetRightInput(),
+                    m_touchControls.ConsumeJumpEdge());
+            }
+            else
+            {
+                m_playerController->ClearTouchInput();
             }
         }
 
@@ -475,6 +535,13 @@ namespace BlockJumper
                 m_lastDifficulty = currentDiff;
             }
 
+            if (currentDiff > m_highestStageReached)
+            {
+                m_highestStageReached = currentDiff;
+                m_saveManager.SetCheckpointLevel(m_highestStageReached);
+                m_gameOverUI.SetLatestStageReached(m_highestStageReached);
+            }
+
             // Synchronize skybox theme with difficulty progression
             if (m_renderer)
             {
@@ -518,7 +585,8 @@ namespace BlockJumper
             m_gameOverDuration += deltaTime;
             if (m_gameOverUI.CheckRetryAction(screenWidth, screenHeight))
             {
-                TriggerRetry();
+                int targetStage = m_gameOverUI.GetSelectedRetryStage();
+                TriggerRetry(targetStage);
             }
         }
 
@@ -550,6 +618,9 @@ namespace BlockJumper
                 m_levelManager.GetDifficultyStageName(m_levelManager.GetCurrentDifficulty()),
                 m_saveManager.GetBestDistance(),
                 m_stageMilestoneTimer);
+
+            // Render Touch Controls (Joystick, Jump, Toggle Button)
+            m_touchControls.Render(windowWidth, windowHeight);
         }
         else if (m_gameState == GameState::GameOver)
         {
@@ -561,7 +632,8 @@ namespace BlockJumper
                 m_isNewRecord,
                 m_levelManager.GetCompletedSegments(),
                 m_levelManager.GetDifficultyStageName(m_levelManager.GetCurrentDifficulty()),
-                m_gameOverDuration);
+                m_gameOverDuration,
+                m_highestStageReached);
         }
 
         // 3. Render Options Window on top if open
@@ -578,6 +650,7 @@ namespace BlockJumper
         m_retryClip.reset();
         m_gameOverSoundPlayed = false;
 
+        m_touchControls.Shutdown();
         m_gameOverUI.Shutdown();
         m_optionsUI.Shutdown();
         m_vfxSystem.Shutdown();

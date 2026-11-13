@@ -36,6 +36,15 @@ namespace BlockJumper
         bool IsValid = true;
     };
 
+    enum class IslandType
+    {
+        AncientGrove,
+        CliffSanctuary,
+        ExpeditionCamp,
+        WildflowerRidge,
+        DistantHorizon
+    };
+
     /**
      * @brief Manages procedural endless level generation, progression tracking,
      * and automatic segment recycling for Block Jumper.
@@ -91,6 +100,12 @@ namespace BlockJumper
          */
         void Reset();
 
+        /**
+         * @brief Resets level progression to a specific difficulty stage checkpoint.
+         * Deterministically reconstructs the level route up to targetStage and returns the safe spawn position.
+         */
+        void ResetToStage(int targetStage, Aion::Vector3& outSpawnPos);
+
         // Difficulty Progression Telemetry & Validation
         int GetCurrentDifficulty() const;
         int GetCompletedSegments() const { return m_currentSegmentIndex; }
@@ -131,11 +146,19 @@ namespace BlockJumper
             int segmentIndex,
             size_t platformIndex,
             std::vector<std::shared_ptr<Aion::Object3D>>& decorObjs);
-        void SpawnSegmentScenery(
+        void SpawnSegmentSideDecorations(
             int segmentIndex,
             int difficulty,
             const Aion::Vector3& entryPoint,
             const Aion::Vector3& exitPoint,
+            std::vector<std::shared_ptr<Aion::Object3D>>& decorObjs);
+        void SpawnFloatingIsland(
+            const Aion::Vector3& centerPos,
+            float baseScale,
+            float rotYDegrees,
+            IslandType type,
+            int difficulty,
+            int segmentIndex,
             std::vector<std::shared_ptr<Aion::Object3D>>& decorObjs);
         std::shared_ptr<Aion::Object3D> CreateDecorObject(
             const std::shared_ptr<Aion::Model>& model,
@@ -162,17 +185,15 @@ namespace BlockJumper
         std::shared_ptr<Aion::Model> m_movingLargeModel;
         std::shared_ptr<Aion::Model> m_sawModel;
 
-        // Cached Kenney Mini-Forest environmental models
+        // Cached Kenney Mini-Forest environmental nature models (strictly trees, rocks, flora)
         std::shared_ptr<Aion::Model> m_mfTreeModel;
         std::shared_ptr<Aion::Model> m_mfTreeHighModel;
         std::shared_ptr<Aion::Model> m_mfPlantModel;
         std::shared_ptr<Aion::Model> m_mfStonesModel;
         std::shared_ptr<Aion::Model> m_mfRocksLowModel;
         std::shared_ptr<Aion::Model> m_mfRocksHighModel;
-        std::shared_ptr<Aion::Model> m_mfTentModel;
-        std::shared_ptr<Aion::Model> m_mfFenceModel;
 
-        // Cached Kenney Platformer-Kit decorative and nature models
+        // Cached Kenney Platformer-Kit decorative nature models (strictly trees, rocks, flowers)
         std::shared_ptr<Aion::Model> m_pkGrassModel;
         std::shared_ptr<Aion::Model> m_pkFlowersModel;
         std::shared_ptr<Aion::Model> m_pkFlowersTallModel;
@@ -180,12 +201,9 @@ namespace BlockJumper
         std::shared_ptr<Aion::Model> m_pkRocksModel;
         std::shared_ptr<Aion::Model> m_pkStonesModel;
         std::shared_ptr<Aion::Model> m_pkMushroomsModel;
-        std::shared_ptr<Aion::Model> m_pkFenceLowModel;
-        std::shared_ptr<Aion::Model> m_pkFenceBrokenModel;
-        std::shared_ptr<Aion::Model> m_pkCrateModel;
+        std::shared_ptr<Aion::Model> m_pkTreeModel;
         std::shared_ptr<Aion::Model> m_pkTreePineModel;
         std::shared_ptr<Aion::Model> m_pkTreePineSmallModel;
-        std::shared_ptr<Aion::Model> m_pkSignModel;
 
         // Mini-Forest ground patch models
         std::shared_ptr<Aion::Model> m_mfPatchGrassModel;
@@ -195,6 +213,19 @@ namespace BlockJumper
         std::shared_ptr<Aion::Model> m_pkTreePineSnowModel;
         std::shared_ptr<Aion::Model> m_pkTreePineSnowSmallModel;
         std::shared_ptr<Aion::Model> m_pkTreeSnowModel;
+
+        // Decorative background platform structure models
+        std::shared_ptr<Aion::Model> m_pkPlatformModel;
+
+        // Large Floating Island foundation models (Platformer-Kit)
+        std::shared_ptr<Aion::Model> m_pkGrassLargeTallModel;
+        std::shared_ptr<Aion::Model> m_pkGrassOverhangTallModel;
+        std::shared_ptr<Aion::Model> m_pkGrassOverhangLargeModel;
+        std::shared_ptr<Aion::Model> m_pkGrassHexagonModel;
+        std::shared_ptr<Aion::Model> m_pkGrassOverhangHexagonModel;
+        std::shared_ptr<Aion::Model> m_pkSnowLargeTallModel;
+        std::shared_ptr<Aion::Model> m_pkSnowOverhangTallModel;
+        std::shared_ptr<Aion::Model> m_pkSnowHexagonModel;
 
         // Expanded platform model variant collections for Grass and Snow
         std::vector<PlatformModelVariant> m_grassLargeVariants;

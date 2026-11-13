@@ -75,6 +75,9 @@ namespace BlockJumper
         m_simulatedForward = 0.0f;
         m_simulatedRight = 0.0f;
         m_simulatedJump = false;
+        m_touchForward = 0.0f;
+        m_touchRight = 0.0f;
+        m_touchJumpEdge = false;
 
         Aion::Object3D* owner = GetOwner();
         if (owner)
@@ -131,25 +134,33 @@ namespace BlockJumper
             }
             else
             {
+                // Keyboard inputs
+                float kbdForward = 0.0f;
+                float kbdRight = 0.0f;
+
                 // Forward (W / Up) and Backward (S / Down)
                 if (Aion::Input::GetKey(Aion::Key::W) || Aion::Input::GetKey(Aion::Key::Up))
                 {
-                    forwardInput += 1.0f;
+                    kbdForward += 1.0f;
                 }
                 if (Aion::Input::GetKey(Aion::Key::S) || Aion::Input::GetKey(Aion::Key::Down))
                 {
-                    forwardInput -= 1.0f;
+                    kbdForward -= 1.0f;
                 }
 
                 // Right (D / Right) and Left (A / Left)
                 if (Aion::Input::GetKey(Aion::Key::D) || Aion::Input::GetKey(Aion::Key::Right))
                 {
-                    rightInput += 1.0f;
+                    kbdRight += 1.0f;
                 }
                 if (Aion::Input::GetKey(Aion::Key::A) || Aion::Input::GetKey(Aion::Key::Left))
                 {
-                    rightInput -= 1.0f;
+                    kbdRight -= 1.0f;
                 }
+
+                // Combine keyboard and touch input seamlessly
+                forwardInput = std::clamp(kbdForward + m_touchForward, -1.0f, 1.0f);
+                rightInput = std::clamp(kbdRight + m_touchRight, -1.0f, 1.0f);
             }
         }
 
@@ -166,7 +177,8 @@ namespace BlockJumper
         if (inputMagnitude > 0.001f)
         {
             moveDir = moveDir * (1.0f / inputMagnitude);
-            Aion::Vector3 targetVelocity = moveDir * m_config.MoveSpeed;
+            float speedScale = std::min(inputMagnitude, 1.0f);
+            Aion::Vector3 targetVelocity = moveDir * (m_config.MoveSpeed * speedScale);
 
             // Accelerate smoothly towards target velocity
             Aion::Vector3 velDiff = targetVelocity - m_horizontalVelocity;
@@ -215,7 +227,10 @@ namespace BlockJumper
             }
             else
             {
-                jumpRequested = Aion::Input::GetKey(Aion::Key::Space);
+                bool kbdJump = Aion::Input::GetKey(Aion::Key::Space);
+                bool touchJump = m_touchJumpEdge;
+                m_touchJumpEdge = false; // Consume jump edge
+                jumpRequested = kbdJump || touchJump;
             }
         }
 

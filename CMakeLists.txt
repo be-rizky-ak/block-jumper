@@ -23,6 +23,7 @@ set(BLOCK_JUMPER_SOURCES
     src/vfx/VisualEffectsSystem.cpp
     src/game/ResourcePath.cpp
     src/ui/OptionsUI.cpp
+    src/ui/TouchControlsUI.cpp
 )
 
 set(BLOCK_JUMPER_HEADERS
@@ -43,6 +44,7 @@ set(BLOCK_JUMPER_HEADERS
     src/vfx/VisualEffectsSystem.h
     src/game/ResourcePath.h
     src/ui/OptionsUI.h
+    src/ui/TouchControlsUI.h
 )
 
 add_executable(BlockJumper
