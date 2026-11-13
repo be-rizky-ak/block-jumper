@@ -170,6 +170,7 @@ void main()
 
         m_dirty = false;
         m_isOpen = true;
+        m_currentScreen = OptionsScreen::Menu;
         m_activeDraggingSlider = AudioSliderCategory::None;
         m_escPrev = true;
         m_mousePrev = true;
@@ -178,6 +179,18 @@ void main()
                   << static_cast<int>(std::round(m_masterVolume * 100.0f))
                   << "%, Music=" << static_cast<int>(std::round(m_musicVolume * 100.0f))
                   << "%, SFX=" << static_cast<int>(std::round(m_sfxVolume * 100.0f)) << "%)." << std::endl;
+    }
+
+    void OptionsUI::NavigateBack()
+    {
+        if (m_currentScreen == OptionsScreen::Menu)
+        {
+            Close();
+        }
+        else
+        {
+            m_currentScreen = OptionsScreen::Menu;
+        }
     }
 
     void OptionsUI::Close()
@@ -261,6 +274,18 @@ void main()
                 ndcY >= m_closeBtnMinY && ndcY <= m_closeBtnMaxY);
     }
 
+    bool OptionsUI::IsMouseOverMenuVolume(float ndcX, float ndcY) const
+    {
+        return (ndcX >= m_menuVolMinX && ndcX <= m_menuVolMaxX &&
+                ndcY >= m_menuVolMinY && ndcY <= m_menuVolMaxY);
+    }
+
+    bool OptionsUI::IsMouseOverMenuCredits(float ndcX, float ndcY) const
+    {
+        return (ndcX >= m_menuCredMinX && ndcX <= m_menuCredMaxX &&
+                ndcY >= m_menuCredMinY && ndcY <= m_menuCredMaxY);
+    }
+
     bool OptionsUI::Update(float deltaTime, int screenWidth, int screenHeight)
     {
         (void)deltaTime;
@@ -281,24 +306,60 @@ void main()
 
         bool mouseButtonDown = Aion::Input::GetMouseButton(Aion::Mouse::ButtonLeft);
 
-        // 1. Keyboard Shortcut: ESC or Backspace closes Options
+        // 1. Keyboard Shortcut: ESC or Backspace returns to Menu or closes
         bool escCurrent = Aion::Input::GetKey(Aion::Key::Escape) || Aion::Input::GetKey(Aion::Key::Backspace);
         if (escCurrent && !m_escPrev)
         {
             m_escPrev = true;
-            Close();
+            NavigateBack();
             return true;
         }
         m_escPrev = escCurrent;
 
-        // 2. Close Button Click
+        // 2. Button clicks and interactions per screen
         bool mouseJustClicked = (mouseButtonDown && !m_mousePrev);
         m_mousePrev = mouseButtonDown;
 
+        if (m_currentScreen == OptionsScreen::Menu)
+        {
+            if (mouseJustClicked)
+            {
+                if (IsMouseOverMenuVolume(ndcX, ndcY))
+                {
+                    m_currentScreen = OptionsScreen::Volume;
+                    return true;
+                }
+                if (IsMouseOverMenuCredits(ndcX, ndcY))
+                {
+                    m_currentScreen = OptionsScreen::Credits;
+                    return true;
+                }
+                if (IsMouseOverCloseButton(ndcX, ndcY))
+                {
+                    m_closeButtonPressed = true;
+                    Close();
+                    return true;
+                }
+            }
+            return true;
+        }
+
+        if (m_currentScreen == OptionsScreen::Credits)
+        {
+            if (mouseJustClicked && IsMouseOverCloseButton(ndcX, ndcY))
+            {
+                m_closeButtonPressed = true;
+                m_currentScreen = OptionsScreen::Menu;
+                return true;
+            }
+            return true;
+        }
+
+        // m_currentScreen == OptionsScreen::Volume:
         if (mouseJustClicked && IsMouseOverCloseButton(ndcX, ndcY))
         {
             m_closeButtonPressed = true;
-            Close();
+            m_currentScreen = OptionsScreen::Menu;
             return true;
         }
 
@@ -519,57 +580,9 @@ void main()
         m_vertexArray->DrawArrays(static_cast<uint32_t>(vertexBuffer.size() / 8), Aion::PrimitiveType::Triangles);
     }
 
-    void OptionsUI::Render(int screenWidth, int screenHeight)
+    void OptionsUI::RenderMenuScreen(int screenWidth, int screenHeight, float pixelW, float pixelH, float cardX0, float cardX1, float cardY0, float cardY1)
     {
-        if (!m_isOpen || screenWidth <= 0 || screenHeight <= 0)
-        {
-            return;
-        }
-
-        EnsureInitialized();
-
-        Aion::RenderState prevState = Aion::RenderCommand::GetCurrentState();
-        Aion::RenderState uiState = prevState;
-        uiState.DepthTest = false;
-        uiState.CullingMode = Aion::CullMode::None;
-        uiState.BlendEnable = true;
-        uiState.SrcBlend = Aion::BlendFactor::SrcAlpha;
-        uiState.DstBlend = Aion::BlendFactor::OneMinusSrcAlpha;
-        Aion::RenderCommand::ApplyState(uiState);
-
-        float pixelW = 2.0f / static_cast<float>(screenWidth);
-        float pixelH = 2.0f / static_cast<float>(screenHeight);
-
-        // 1. Fullscreen Dimming Overlay
-        std::vector<float> dimVerts;
-        AddColoredQuad(-1.0f, -1.0f, 1.0f, 1.0f,
-                       Aion::Vector4(0.04f, 0.06f, 0.10f, 0.75f), dimVerts);
-        FlushBatch(nullptr, dimVerts);
-
-        // 2. Responsive Central Dialog (560px x 420px at 1280x720, proportionally scaling)
-        float cardHalfW = 280.0f * pixelW;
-        float cardHalfH = 210.0f * pixelH;
-        float cardCenterY = 0.02f;
-        float cardX0 = -cardHalfW;
-        float cardX1 =  cardHalfW;
-        float cardY0 = cardCenterY - cardHalfH;
-        float cardY1 = cardCenterY + cardHalfH;
-
-        // Dialog shadow
-        std::vector<float> shadowVerts;
-        AddColoredQuad(cardX0 + 10.0f * pixelW, cardY0 - 10.0f * pixelH,
-                       cardX1 + 10.0f * pixelW, cardY1 - 10.0f * pixelH,
-                       Aion::Vector4(0.02f, 0.03f, 0.05f, 0.55f), shadowVerts);
-        FlushBatch(nullptr, shadowVerts);
-
-        // Dialog panel body (9-slice Kenney Card panel)
-        std::vector<float> cardVerts;
-        Add9Slice(cardX0, cardY0, cardX1, cardY1, 28.0f, 576.0f, 384.0f,
-                  Aion::Vector4(0.14f, 0.18f, 0.24f, 0.98f), cardVerts,
-                  screenWidth, screenHeight);
-        FlushBatch(m_texCardPanel ? m_texCardPanel : m_texWhiteFallback, cardVerts);
-
-        // 3. Header Title & Accent Divider
+        // 1. Title & Divider
         std::vector<float> divVerts;
         float divY = cardY1 - 70.0f * pixelH;
         AddTexturedQuad(cardX0 + 28.0f * pixelW, divY - 4.0f * pixelH,
@@ -585,16 +598,172 @@ void main()
         float titleX = -titleW * 0.5f;
         float titleY = cardY1 - 32.0f * pixelH;
 
-        // Shadow behind title
         DrawKenneyString(titleText, titleX + 3.0f * pixelW, titleY - 3.0f * pixelH,
                          titleScale, Aion::Vector4(0.04f, 0.05f, 0.08f, 0.90f),
                          textVerts, screenWidth, screenHeight, 2.5f * pixelW);
-        // Gold title text
         DrawKenneyString(titleText, titleX, titleY,
                          titleScale, Aion::Vector4(1.0f, 0.82f, 0.25f, 1.0f),
                          textVerts, screenWidth, screenHeight, 2.5f * pixelW);
 
-        // 4. Sliders Configuration
+        // 2. Navigation Menu Buttons
+        float btnW = 340.0f * pixelW;
+        float btnH = 52.0f * pixelH;
+
+        float mx = Aion::Input::GetMouseX();
+        float my = Aion::Input::GetMouseY();
+        float ndcX = (mx / static_cast<float>(screenWidth)) * 2.0f - 1.0f;
+        float ndcY = 1.0f - (my / static_cast<float>(screenHeight)) * 2.0f;
+        bool leftDown = Aion::Input::GetMouseButton(Aion::Mouse::ButtonLeft);
+
+        // --- Button 1: Volume Settings ---
+        float btn1CenterY = cardY1 - 135.0f * pixelH;
+        m_menuVolMinX = -btnW * 0.5f;
+        m_menuVolMaxX =  btnW * 0.5f;
+        m_menuVolMinY = btn1CenterY - btnH * 0.5f;
+        m_menuVolMaxY = btn1CenterY + btnH * 0.5f;
+
+        bool volHovered = IsMouseOverMenuVolume(ndcX, ndcY);
+        bool volPressed = volHovered && leftDown;
+        auto volTex = volPressed ? m_texBtnPressed : (volHovered ? m_texBtnHover : m_texBtnNormal);
+        float volYOffset = volPressed ? (-2.0f * pixelH) : 0.0f;
+
+        std::vector<float> b1Shadow;
+        AddColoredQuad(m_menuVolMinX + 4.0f * pixelW, m_menuVolMinY - 4.0f * pixelH,
+                       m_menuVolMaxX + 4.0f * pixelW, m_menuVolMaxY - 4.0f * pixelH,
+                       Aion::Vector4(0.02f, 0.03f, 0.05f, 0.40f), b1Shadow);
+        FlushBatch(nullptr, b1Shadow);
+
+        std::vector<float> b1Verts;
+        Add9Slice(m_menuVolMinX, m_menuVolMinY + volYOffset,
+                  m_menuVolMaxX, m_menuVolMaxY + volYOffset,
+                  18.0f, 384.0f, 128.0f,
+                  Aion::Vector4(1.0f, 1.0f, 1.0f, 1.0f), b1Verts, screenWidth, screenHeight);
+        FlushBatch(volTex ? volTex : m_texWhiteFallback, b1Verts);
+
+        std::string volText = "VOLUME SETTINGS";
+        float volTextScale = 0.50f;
+        float volTextW = MeasureKenneyString(volText, volTextScale, screenWidth, 1.5f * pixelW);
+        float volTextX = -volTextW * 0.5f;
+        float volTextY = btn1CenterY + 9.0f * pixelH + volYOffset;
+        DrawKenneyString(volText, volTextX + 2.0f * pixelW, volTextY - 2.0f * pixelH,
+                         volTextScale, Aion::Vector4(0.04f, 0.15f, 0.08f, 0.90f),
+                         textVerts, screenWidth, screenHeight, 1.5f * pixelW);
+        DrawKenneyString(volText, volTextX, volTextY,
+                         volTextScale, Aion::Vector4(1.0f, 1.0f, 1.0f, 1.0f),
+                         textVerts, screenWidth, screenHeight, 1.5f * pixelW);
+
+        // --- Button 2: Credits ---
+        float btn2CenterY = cardY1 - 215.0f * pixelH;
+        m_menuCredMinX = -btnW * 0.5f;
+        m_menuCredMaxX =  btnW * 0.5f;
+        m_menuCredMinY = btn2CenterY - btnH * 0.5f;
+        m_menuCredMaxY = btn2CenterY + btnH * 0.5f;
+
+        bool credHovered = IsMouseOverMenuCredits(ndcX, ndcY);
+        bool credPressed = credHovered && leftDown;
+        auto credTex = credPressed ? m_texBtnPressed : (credHovered ? m_texBtnHover : m_texBtnNormal);
+        float credYOffset = credPressed ? (-2.0f * pixelH) : 0.0f;
+
+        std::vector<float> b2Shadow;
+        AddColoredQuad(m_menuCredMinX + 4.0f * pixelW, m_menuCredMinY - 4.0f * pixelH,
+                       m_menuCredMaxX + 4.0f * pixelW, m_menuCredMaxY - 4.0f * pixelH,
+                       Aion::Vector4(0.02f, 0.03f, 0.05f, 0.40f), b2Shadow);
+        FlushBatch(nullptr, b2Shadow);
+
+        std::vector<float> b2Verts;
+        Add9Slice(m_menuCredMinX, m_menuCredMinY + credYOffset,
+                  m_menuCredMaxX, m_menuCredMaxY + credYOffset,
+                  18.0f, 384.0f, 128.0f,
+                  Aion::Vector4(1.0f, 1.0f, 1.0f, 1.0f), b2Verts, screenWidth, screenHeight);
+        FlushBatch(credTex ? credTex : m_texWhiteFallback, b2Verts);
+
+        std::string credText = "CREDITS";
+        float credTextScale = 0.50f;
+        float credTextW = MeasureKenneyString(credText, credTextScale, screenWidth, 1.5f * pixelW);
+        float credTextX = -credTextW * 0.5f;
+        float credTextY = btn2CenterY + 9.0f * pixelH + credYOffset;
+        DrawKenneyString(credText, credTextX + 2.0f * pixelW, credTextY - 2.0f * pixelH,
+                         credTextScale, Aion::Vector4(0.04f, 0.15f, 0.08f, 0.90f),
+                         textVerts, screenWidth, screenHeight, 1.5f * pixelW);
+        DrawKenneyString(credText, credTextX, credTextY,
+                         credTextScale, Aion::Vector4(1.0f, 1.0f, 1.0f, 1.0f),
+                         textVerts, screenWidth, screenHeight, 1.5f * pixelW);
+
+        // --- Button 3: Close / Back to Game ---
+        float btnHalfW = 110.0f * pixelW;
+        float btnHalfH = 24.0f * pixelH;
+        float btnCenterY = cardY0 + 44.0f * pixelH;
+
+        m_closeBtnMinX = -btnHalfW;
+        m_closeBtnMaxX =  btnHalfW;
+        m_closeBtnMinY = btnCenterY - btnHalfH;
+        m_closeBtnMaxY = btnCenterY + btnHalfH;
+
+        bool closeHovered = IsMouseOverCloseButton(ndcX, ndcY);
+        bool closePressed = m_closeButtonPressed || (closeHovered && leftDown);
+
+        if (m_closeBtnVisualOverride == 0) { closeHovered = false; closePressed = false; }
+        else if (m_closeBtnVisualOverride == 1) { closeHovered = true; closePressed = false; }
+        else if (m_closeBtnVisualOverride == 2) { closeHovered = true; closePressed = true; }
+
+        auto closeTex = closePressed ? m_texBtnPressed : (closeHovered ? m_texBtnHover : m_texBtnNormal);
+        float closeYOffset = closePressed ? (-2.0f * pixelH) : 0.0f;
+
+        std::vector<float> b3Shadow;
+        AddColoredQuad(m_closeBtnMinX + 4.0f * pixelW, m_closeBtnMinY - 4.0f * pixelH,
+                       m_closeBtnMaxX + 4.0f * pixelW, m_closeBtnMaxY - 4.0f * pixelH,
+                       Aion::Vector4(0.02f, 0.03f, 0.05f, 0.40f), b3Shadow);
+        FlushBatch(nullptr, b3Shadow);
+
+        std::vector<float> b3Verts;
+        Add9Slice(m_closeBtnMinX, m_closeBtnMinY + closeYOffset,
+                  m_closeBtnMaxX, m_closeBtnMaxY + closeYOffset,
+                  18.0f, 384.0f, 128.0f,
+                  Aion::Vector4(1.0f, 1.0f, 1.0f, 1.0f), b3Verts, screenWidth, screenHeight);
+        FlushBatch(closeTex ? closeTex : m_texWhiteFallback, b3Verts);
+
+        std::string closeText = "CLOSE [ESC]";
+        float closeTextScale = 0.46f;
+        float closeTextW = MeasureKenneyString(closeText, closeTextScale, screenWidth, 1.5f * pixelW);
+        float closeTextX = -closeTextW * 0.5f;
+        float closeTextY = btnCenterY + 8.0f * pixelH + closeYOffset;
+
+        DrawKenneyString(closeText, closeTextX + 2.0f * pixelW, closeTextY - 2.0f * pixelH,
+                         closeTextScale, Aion::Vector4(0.04f, 0.15f, 0.08f, 0.90f),
+                         textVerts, screenWidth, screenHeight, 1.5f * pixelW);
+        DrawKenneyString(closeText, closeTextX, closeTextY,
+                         closeTextScale, Aion::Vector4(1.0f, 1.0f, 1.0f, 1.0f),
+                         textVerts, screenWidth, screenHeight, 1.5f * pixelW);
+
+        FlushBatch(m_texFontAtlas, textVerts);
+    }
+
+    void OptionsUI::RenderVolumeScreen(int screenWidth, int screenHeight, float pixelW, float pixelH, float cardX0, float cardX1, float cardY0, float cardY1)
+    {
+        // 1. Title & Divider
+        std::vector<float> divVerts;
+        float divY = cardY1 - 70.0f * pixelH;
+        AddTexturedQuad(cardX0 + 28.0f * pixelW, divY - 4.0f * pixelH,
+                        cardX1 - 28.0f * pixelW, divY + 4.0f * pixelH,
+                        0.0f, 0.0f, 1.0f, 1.0f,
+                        Aion::Vector4(0.95f, 0.75f, 0.25f, 0.85f), divVerts);
+        FlushBatch(m_texDivider, divVerts);
+
+        std::vector<float> textVerts;
+        std::string titleText = "VOLUME SETTINGS";
+        float titleScale = 0.72f;
+        float titleW = MeasureKenneyString(titleText, titleScale, screenWidth, 2.5f * pixelW);
+        float titleX = -titleW * 0.5f;
+        float titleY = cardY1 - 32.0f * pixelH;
+
+        DrawKenneyString(titleText, titleX + 3.0f * pixelW, titleY - 3.0f * pixelH,
+                         titleScale, Aion::Vector4(0.04f, 0.05f, 0.08f, 0.90f),
+                         textVerts, screenWidth, screenHeight, 2.5f * pixelW);
+        DrawKenneyString(titleText, titleX, titleY,
+                         titleScale, Aion::Vector4(1.0f, 0.82f, 0.25f, 1.0f),
+                         textVerts, screenWidth, screenHeight, 2.5f * pixelW);
+
+        // 2. Sliders Configuration
         float sliderMarginX = 36.0f * pixelW;
         float trackLeftX = cardX0 + sliderMarginX;
         float trackRightX = cardX1 - sliderMarginX;
@@ -628,13 +797,11 @@ void main()
 
         for (const auto& row : rows)
         {
-            // Record interaction bounding box
             row.outBounds->trackX0 = trackLeftX;
             row.outBounds->trackX1 = trackRightX;
             row.outBounds->trackY0 = row.rowCenterY - trackH * 0.5f;
             row.outBounds->trackY1 = row.rowCenterY + trackH * 0.5f;
 
-            // Row Label Text
             float labelScale = 0.44f;
             float labelY = row.rowCenterY + 28.0f * pixelH;
             DrawKenneyString(row.label, trackLeftX + 2.0f * pixelW, labelY - 2.0f * pixelH,
@@ -644,7 +811,6 @@ void main()
                              labelScale, Aion::Vector4(1.0f, 1.0f, 1.0f, 1.0f),
                              textVerts, screenWidth, screenHeight, 1.5f * pixelW);
 
-            // Percentage Label (e.g. "100%", "50%", "0%")
             int pct = static_cast<int>(std::round(row.volume * 100.0f));
             std::string pctStr = std::to_string(pct) + "%";
             float pctW = MeasureKenneyString(pctStr, labelScale, screenWidth, 1.5f * pixelW);
@@ -657,14 +823,12 @@ void main()
                              labelScale, Aion::Vector4(0.35f, 0.90f, 0.65f, 1.0f),
                              textVerts, screenWidth, screenHeight, 1.5f * pixelW);
 
-            // Slider Track Background
             float tY0 = row.outBounds->trackY0;
             float tY1 = row.outBounds->trackY1;
             AddTexturedQuad(trackLeftX, tY0, trackRightX, tY1,
                             0.0f, 0.0f, 1.0f, 1.0f,
                             Aion::Vector4(0.9f, 0.9f, 0.95f, 0.85f), trackVerts);
 
-            // Slider Fill Bar (proportional to volume)
             float clampedVol = std::clamp(row.volume, 0.0f, 1.0f);
             if (clampedVol > 0.001f)
             {
@@ -674,7 +838,6 @@ void main()
                                 Aion::Vector4(0.20f, 0.85f, 0.50f, 0.95f), fillVerts);
             }
 
-            // Slider Knob Handle (centered at current volume level)
             float handleCenterX = trackLeftX + trackSpan * clampedVol;
             float hX0 = handleCenterX - handleW * 0.5f;
             float hX1 = handleCenterX + handleW * 0.5f;
@@ -686,12 +849,11 @@ void main()
                             Aion::Vector4(1.0f, 1.0f, 1.0f, 1.0f), handleVerts);
         }
 
-        // Flush slider graphics batches
         FlushBatch(m_texSliderTrack ? m_texSliderTrack : m_texWhiteFallback, trackVerts);
         FlushBatch(m_texSliderFill ? m_texSliderFill : m_texWhiteFallback, fillVerts);
         FlushBatch(m_texSliderHandle ? m_texSliderHandle : m_texWhiteFallback, handleVerts);
 
-        // 5. Close / Back Button at Bottom
+        // 3. Back Button at Bottom
         float btnHalfW = 110.0f * pixelW;
         float btnHalfH = 24.0f * pixelH;
         float btnCenterY = cardY0 + 44.0f * pixelH;
@@ -709,42 +871,19 @@ void main()
         bool hovered = IsMouseOverCloseButton(ndcX, ndcY);
         bool pressed = m_closeButtonPressed || (hovered && Aion::Input::GetMouseButton(Aion::Mouse::ButtonLeft));
 
-        if (m_closeBtnVisualOverride == 0) // Force Normal
-        {
-            hovered = false;
-            pressed = false;
-        }
-        else if (m_closeBtnVisualOverride == 1) // Force Hover
-        {
-            hovered = true;
-            pressed = false;
-        }
-        else if (m_closeBtnVisualOverride == 2) // Force Pressed
-        {
-            hovered = true;
-            pressed = true;
-        }
+        if (m_closeBtnVisualOverride == 0) { hovered = false; pressed = false; }
+        else if (m_closeBtnVisualOverride == 1) { hovered = true; pressed = false; }
+        else if (m_closeBtnVisualOverride == 2) { hovered = true; pressed = true; }
 
-        std::shared_ptr<Aion::Texture> activeBtnTex = m_texBtnNormal;
-        if (pressed)
-        {
-            activeBtnTex = m_texBtnPressed;
-        }
-        else if (hovered)
-        {
-            activeBtnTex = m_texBtnHover;
-        }
-
+        auto activeBtnTex = pressed ? m_texBtnPressed : (hovered ? m_texBtnHover : m_texBtnNormal);
         float pressYOffset = pressed ? (-2.0f * pixelH) : 0.0f;
 
-        // Button drop shadow
         std::vector<float> btnShadowVerts;
         AddColoredQuad(m_closeBtnMinX + 4.0f * pixelW, m_closeBtnMinY - 4.0f * pixelH,
                        m_closeBtnMaxX + 4.0f * pixelW, m_closeBtnMaxY - 4.0f * pixelH,
                        Aion::Vector4(0.02f, 0.03f, 0.05f, 0.40f), btnShadowVerts);
         FlushBatch(nullptr, btnShadowVerts);
 
-        // 9-slice button body
         std::vector<float> btnVerts;
         Add9Slice(m_closeBtnMinX, m_closeBtnMinY + pressYOffset,
                   m_closeBtnMaxX, m_closeBtnMaxY + pressYOffset,
@@ -753,7 +892,6 @@ void main()
                   screenWidth, screenHeight);
         FlushBatch(activeBtnTex ? activeBtnTex : m_texWhiteFallback, btnVerts);
 
-        // Close button text
         std::string btnText = "BACK [ESC]";
         float btnTextScale = 0.46f;
         float btnTextW = MeasureKenneyString(btnText, btnTextScale, screenWidth, 1.5f * pixelW);
@@ -767,8 +905,198 @@ void main()
                          btnTextScale, Aion::Vector4(1.0f, 1.0f, 1.0f, 1.0f),
                          textVerts, screenWidth, screenHeight, 1.5f * pixelW);
 
-        // Flush typography
         FlushBatch(m_texFontAtlas, textVerts);
+    }
+
+    void OptionsUI::RenderCreditsScreen(int screenWidth, int screenHeight, float pixelW, float pixelH, float cardX0, float cardX1, float cardY0, float cardY1)
+    {
+        // 1. Title & Divider
+        std::vector<float> divVerts;
+        float divY = cardY1 - 70.0f * pixelH;
+        AddTexturedQuad(cardX0 + 28.0f * pixelW, divY - 4.0f * pixelH,
+                        cardX1 - 28.0f * pixelW, divY + 4.0f * pixelH,
+                        0.0f, 0.0f, 1.0f, 1.0f,
+                        Aion::Vector4(0.95f, 0.75f, 0.25f, 0.85f), divVerts);
+        FlushBatch(m_texDivider, divVerts);
+
+        std::vector<float> textVerts;
+        std::string titleText = "CREDITS";
+        float titleScale = 0.80f;
+        float titleW = MeasureKenneyString(titleText, titleScale, screenWidth, 2.5f * pixelW);
+        float titleX = -titleW * 0.5f;
+        float titleY = cardY1 - 32.0f * pixelH;
+
+        DrawKenneyString(titleText, titleX + 3.0f * pixelW, titleY - 3.0f * pixelH,
+                         titleScale, Aion::Vector4(0.04f, 0.05f, 0.08f, 0.90f),
+                         textVerts, screenWidth, screenHeight, 2.5f * pixelW);
+        DrawKenneyString(titleText, titleX, titleY,
+                         titleScale, Aion::Vector4(1.0f, 0.82f, 0.25f, 1.0f),
+                         textVerts, screenWidth, screenHeight, 2.5f * pixelW);
+
+        // 2. Credits Entries
+        struct CreditEntry
+        {
+            const char* header;
+            const char* detail;
+        };
+
+        CreditEntry entries[] = {
+            {"AION ENGINE", "MODULAR C++20 3D ENGINE - OPENGL 3.3 CORE"},
+            {"3D MODELS & ASSETS", "KENNEY (PLATFORMER KIT, CHARACTERS, FOREST - CC0)"},
+            {"AUDIO & SOUND EFFECTS", "KENNEY DIGITAL AUDIO (CC0 1.0 UNIVERSAL)"},
+            {"BACKGROUND MUSIC", "'COTTON TOYS' BY SOUNDROLL (UPPBEAT)"},
+            {"THIRD-PARTY LIBRARIES", "GLFW, GLAD, GLM, IMGUI, NLOHMANN JSON, STB"}
+        };
+
+        float startY = cardY1 - 92.0f * pixelH;
+        float spacingY = 48.0f * pixelH;
+
+        for (int i = 0; i < 5; ++i)
+        {
+            float entryY = startY - i * spacingY;
+
+            // Category Header (Gold)
+            float hScale = 0.38f;
+            float hW = MeasureKenneyString(entries[i].header, hScale, screenWidth, 1.5f * pixelW);
+            float hX = -hW * 0.5f;
+            DrawKenneyString(entries[i].header, hX + 2.0f * pixelW, entryY - 2.0f * pixelH,
+                             hScale, Aion::Vector4(0.04f, 0.05f, 0.08f, 0.90f),
+                             textVerts, screenWidth, screenHeight, 1.5f * pixelW);
+            DrawKenneyString(entries[i].header, hX, entryY,
+                             hScale, Aion::Vector4(1.0f, 0.82f, 0.25f, 1.0f),
+                             textVerts, screenWidth, screenHeight, 1.5f * pixelW);
+
+            // Detail Text (Light Blue-White)
+            float dScale = 0.32f;
+            float dW = MeasureKenneyString(entries[i].detail, dScale, screenWidth, 1.0f * pixelW);
+            float dX = -dW * 0.5f;
+            float dY = entryY - 18.0f * pixelH;
+            DrawKenneyString(entries[i].detail, dX + 2.0f * pixelW, dY - 2.0f * pixelH,
+                             dScale, Aion::Vector4(0.02f, 0.03f, 0.05f, 0.85f),
+                             textVerts, screenWidth, screenHeight, 1.0f * pixelW);
+            DrawKenneyString(entries[i].detail, dX, dY,
+                             dScale, Aion::Vector4(0.88f, 0.92f, 0.96f, 1.0f),
+                             textVerts, screenWidth, screenHeight, 1.0f * pixelW);
+        }
+
+        // 3. Back Button at Bottom
+        float btnHalfW = 110.0f * pixelW;
+        float btnHalfH = 24.0f * pixelH;
+        float btnCenterY = cardY0 + 44.0f * pixelH;
+
+        m_closeBtnMinX = -btnHalfW;
+        m_closeBtnMaxX =  btnHalfW;
+        m_closeBtnMinY = btnCenterY - btnHalfH;
+        m_closeBtnMaxY = btnCenterY + btnHalfH;
+
+        float mx = Aion::Input::GetMouseX();
+        float my = Aion::Input::GetMouseY();
+        float ndcX = (mx / static_cast<float>(screenWidth)) * 2.0f - 1.0f;
+        float ndcY = 1.0f - (my / static_cast<float>(screenHeight)) * 2.0f;
+
+        bool hovered = IsMouseOverCloseButton(ndcX, ndcY);
+        bool pressed = m_closeButtonPressed || (hovered && Aion::Input::GetMouseButton(Aion::Mouse::ButtonLeft));
+
+        if (m_closeBtnVisualOverride == 0) { hovered = false; pressed = false; }
+        else if (m_closeBtnVisualOverride == 1) { hovered = true; pressed = false; }
+        else if (m_closeBtnVisualOverride == 2) { hovered = true; pressed = true; }
+
+        auto activeBtnTex = pressed ? m_texBtnPressed : (hovered ? m_texBtnHover : m_texBtnNormal);
+        float pressYOffset = pressed ? (-2.0f * pixelH) : 0.0f;
+
+        std::vector<float> btnShadowVerts;
+        AddColoredQuad(m_closeBtnMinX + 4.0f * pixelW, m_closeBtnMinY - 4.0f * pixelH,
+                       m_closeBtnMaxX + 4.0f * pixelW, m_closeBtnMaxY - 4.0f * pixelH,
+                       Aion::Vector4(0.02f, 0.03f, 0.05f, 0.40f), btnShadowVerts);
+        FlushBatch(nullptr, btnShadowVerts);
+
+        std::vector<float> btnVerts;
+        Add9Slice(m_closeBtnMinX, m_closeBtnMinY + pressYOffset,
+                  m_closeBtnMaxX, m_closeBtnMaxY + pressYOffset,
+                  18.0f, 384.0f, 128.0f,
+                  Aion::Vector4(1.0f, 1.0f, 1.0f, 1.0f), btnVerts,
+                  screenWidth, screenHeight);
+        FlushBatch(activeBtnTex ? activeBtnTex : m_texWhiteFallback, btnVerts);
+
+        std::string btnText = "BACK [ESC]";
+        float btnTextScale = 0.46f;
+        float btnTextW = MeasureKenneyString(btnText, btnTextScale, screenWidth, 1.5f * pixelW);
+        float btnTextX = -btnTextW * 0.5f;
+        float btnTextY = btnCenterY + 8.0f * pixelH + pressYOffset;
+
+        DrawKenneyString(btnText, btnTextX + 2.0f * pixelW, btnTextY - 2.0f * pixelH,
+                         btnTextScale, Aion::Vector4(0.04f, 0.15f, 0.08f, 0.90f),
+                         textVerts, screenWidth, screenHeight, 1.5f * pixelW);
+        DrawKenneyString(btnText, btnTextX, btnTextY,
+                         btnTextScale, Aion::Vector4(1.0f, 1.0f, 1.0f, 1.0f),
+                         textVerts, screenWidth, screenHeight, 1.5f * pixelW);
+
+        FlushBatch(m_texFontAtlas, textVerts);
+    }
+
+    void OptionsUI::Render(int screenWidth, int screenHeight)
+    {
+        if (!m_isOpen || screenWidth <= 0 || screenHeight <= 0)
+        {
+            return;
+        }
+
+        EnsureInitialized();
+
+        Aion::RenderState prevState = Aion::RenderCommand::GetCurrentState();
+        Aion::RenderState uiState = prevState;
+        uiState.DepthTest = false;
+        uiState.CullingMode = Aion::CullMode::None;
+        uiState.BlendEnable = true;
+        uiState.SrcBlend = Aion::BlendFactor::SrcAlpha;
+        uiState.DstBlend = Aion::BlendFactor::OneMinusSrcAlpha;
+        Aion::RenderCommand::ApplyState(uiState);
+
+        float pixelW = 2.0f / static_cast<float>(screenWidth);
+        float pixelH = 2.0f / static_cast<float>(screenHeight);
+
+        // 1. Fullscreen Dimming Overlay
+        std::vector<float> dimVerts;
+        AddColoredQuad(-1.0f, -1.0f, 1.0f, 1.0f,
+                       Aion::Vector4(0.04f, 0.06f, 0.10f, 0.75f), dimVerts);
+        FlushBatch(nullptr, dimVerts);
+
+        // 2. Responsive Central Dialog (580px x 450px at 1280x720, proportionally scaling)
+        float cardHalfW = 290.0f * pixelW;
+        float cardHalfH = 225.0f * pixelH;
+        float cardCenterY = 0.02f;
+        float cardX0 = -cardHalfW;
+        float cardX1 =  cardHalfW;
+        float cardY0 = cardCenterY - cardHalfH;
+        float cardY1 = cardCenterY + cardHalfH;
+
+        // Dialog shadow
+        std::vector<float> shadowVerts;
+        AddColoredQuad(cardX0 + 10.0f * pixelW, cardY0 - 10.0f * pixelH,
+                       cardX1 + 10.0f * pixelW, cardY1 - 10.0f * pixelH,
+                       Aion::Vector4(0.02f, 0.03f, 0.05f, 0.55f), shadowVerts);
+        FlushBatch(nullptr, shadowVerts);
+
+        // Dialog panel body (9-slice Kenney Card panel)
+        std::vector<float> cardVerts;
+        Add9Slice(cardX0, cardY0, cardX1, cardY1, 28.0f, 576.0f, 384.0f,
+                  Aion::Vector4(0.14f, 0.18f, 0.24f, 0.98f), cardVerts,
+                  screenWidth, screenHeight);
+        FlushBatch(m_texCardPanel ? m_texCardPanel : m_texWhiteFallback, cardVerts);
+
+        // 3. Render appropriate screen
+        if (m_currentScreen == OptionsScreen::Menu)
+        {
+            RenderMenuScreen(screenWidth, screenHeight, pixelW, pixelH, cardX0, cardX1, cardY0, cardY1);
+        }
+        else if (m_currentScreen == OptionsScreen::Volume)
+        {
+            RenderVolumeScreen(screenWidth, screenHeight, pixelW, pixelH, cardX0, cardX1, cardY0, cardY1);
+        }
+        else if (m_currentScreen == OptionsScreen::Credits)
+        {
+            RenderCreditsScreen(screenWidth, screenHeight, pixelW, pixelH, cardX0, cardX1, cardY0, cardY1);
+        }
 
         Aion::RenderCommand::ApplyState(prevState);
     }

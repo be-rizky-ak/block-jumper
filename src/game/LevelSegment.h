@@ -60,6 +60,7 @@ namespace BlockJumper
         const Aion::Vector3& GetWorldEntryPoint() const { return m_worldEntryPoint; }
         const Aion::Vector3& GetWorldExitPoint() const { return m_worldExitPoint; }
         const std::vector<PlatformBox>& GetPlatforms() const { return m_worldPlatforms; }
+        std::vector<PlatformBox>& GetPlatformsMutable() { return m_worldPlatforms; }
         const std::vector<std::shared_ptr<Aion::Object3D>>& GetSceneObjects() const { return m_sceneObjects; }
         const std::vector<std::shared_ptr<Aion::Object3D>>& GetDecorationObjects() const { return m_decorObjects; }
         const Aion::AABB& GetBounds() const { return m_worldBounds; }

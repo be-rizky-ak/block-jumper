@@ -54,6 +54,11 @@ namespace BlockJumper
         void TriggerJumpDust(const Aion::Vector3& feetPosition);
 
         /**
+         * @brief Spawns an energetic mid-air burst beneath the player upon double jumping.
+         */
+        void TriggerDoubleJumpBurst(const Aion::Vector3& feetPosition);
+
+        /**
          * @brief Spawns an expanding horizontal dust burst upon touching down on a platform.
          */
         void TriggerLandingBurst(const Aion::Vector3& feetPosition, float landingVelocity = 1.0f);

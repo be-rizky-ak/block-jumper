@@ -428,7 +428,15 @@ namespace BlockJumper
             Aion::Vector3 feetPos = m_player->Transform.Position;
             feetPos.y -= 0.5f;
 
-            if (m_playerController->JustJumped())
+            if (m_playerController->JustDoubleJumped())
+            {
+                m_vfxSystem.TriggerDoubleJumpBurst(feetPos);
+                if (m_jumpClip)
+                {
+                    Aion::AudioSystem::PlayOneShot(m_jumpClip, 1.0f);
+                }
+            }
+            else if (m_playerController->JustJumped())
             {
                 m_vfxSystem.TriggerJumpDust(feetPos);
                 if (m_jumpClip)

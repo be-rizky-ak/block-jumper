@@ -25,6 +25,18 @@ namespace BlockJumper
     };
 
     /**
+     * @brief Safe checkpoint registered at the first valid platform of each level.
+     */
+    struct Checkpoint
+    {
+        int Level = 1;
+        int SegmentIndex = 0;
+        Aion::Vector3 SpawnPosition{2.2f, 0.5f, 0.4f};
+        float ForwardProgress = 0.0f;
+        bool IsValid = true;
+    };
+
+    /**
      * @brief Manages procedural endless level generation, progression tracking,
      * and automatic segment recycling for Block Jumper.
      */
@@ -86,6 +98,18 @@ namespace BlockJumper
         const char* GetDifficultyStageName(int difficulty) const;
         bool ValidatePatternTraversal(const SegmentPattern& pattern, const Aion::Vector3& prevExitPoint) const;
 
+        // Moving platforms & dynamic hazards simulation
+        void UpdateMovingObjects(float deltaTime, const Aion::Vector3& playerPos, Aion::Vector3& carriedDelta);
+
+        // Checkpoint Telemetry & Lifecycle
+        const Checkpoint& GetCurrentCheckpoint() const { return m_currentCheckpoint; }
+        int GetCurrentCheckpointLevel() const { return m_currentCheckpoint.Level; }
+        const Aion::Vector3& GetCheckpointSpawnPosition() const { return m_currentCheckpoint.SpawnPosition; }
+        bool HasActiveCheckpoint() const { return m_currentCheckpoint.IsValid; }
+        void ResetCheckpoint();
+        void RegisterCheckpoint(int level, int segmentIndex, const Aion::Vector3& spawnPos, float forwardProgress);
+        void RestoreToCheckpoint(Aion::Vector3& outSpawnPos);
+
     private:
         void InitializePatterns();
         void LoadPlatformModels();
@@ -134,6 +158,9 @@ namespace BlockJumper
         std::shared_ptr<Aion::Model> m_snowNarrowModel;
         std::shared_ptr<Aion::Model> m_spikeObstacleWideModel;
         std::shared_ptr<Aion::Model> m_spikeObstacleModel;
+        std::shared_ptr<Aion::Model> m_movingPlatformModel;
+        std::shared_ptr<Aion::Model> m_movingLargeModel;
+        std::shared_ptr<Aion::Model> m_sawModel;
 
         // Cached Kenney Mini-Forest environmental models
         std::shared_ptr<Aion::Model> m_mfTreeModel;
@@ -194,6 +221,8 @@ namespace BlockJumper
         int m_lastDecorCompositionIndex = -1;
         std::deque<int> m_recentPatternsHistory;
         int m_lastReportedDifficulty = 1;
+
+        Checkpoint m_currentCheckpoint;
 
         std::mt19937 m_rng{1337};
     };

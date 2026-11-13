@@ -22,8 +22,14 @@ namespace BlockJumper
         bool& isGrounded,
         const std::vector<PlatformBox>& platforms,
         float previousY,
-        float /*deltaTime*/)
+        float /*deltaTime*/,
+        const PlatformBox** outGroundedPlatform)
     {
+        if (outGroundedPlatform)
+        {
+            *outGroundedPlatform = nullptr;
+        }
+
         float currentBottomY = position.y - m_halfExtents.y;
         float prevBottomY = previousY - m_halfExtents.y;
 
@@ -114,6 +120,11 @@ namespace BlockJumper
 
         for (const auto& plat : platforms)
         {
+            if (plat.IsSolidObstacle)
+            {
+                continue;
+            }
+
             Aion::Vector3 pMin = plat.GetMin();
             Aion::Vector3 pMax = plat.GetMax();
 
@@ -149,6 +160,10 @@ namespace BlockJumper
             position.y = bestPlatform->GetTopSurfaceY() + m_halfExtents.y;
             verticalVelocity = 0.0f;
             isGrounded = true;
+            if (outGroundedPlatform)
+            {
+                *outGroundedPlatform = bestPlatform;
+            }
             return true;
         }
 
@@ -158,6 +173,11 @@ namespace BlockJumper
             bool stillSupported = false;
             for (const auto& plat : platforms)
             {
+                if (plat.IsSolidObstacle)
+                {
+                    continue;
+                }
+
                 Aion::Vector3 pMin = plat.GetMin();
                 Aion::Vector3 pMax = plat.GetMax();
 
@@ -173,6 +193,10 @@ namespace BlockJumper
                     {
                         position.y = topY + m_halfExtents.y;
                         stillSupported = true;
+                        if (outGroundedPlatform)
+                        {
+                            *outGroundedPlatform = &plat;
+                        }
                         break;
                     }
                 }
@@ -182,6 +206,10 @@ namespace BlockJumper
             {
                 // Player stepped off platform edge into empty space -> begin falling
                 isGrounded = false;
+                if (outGroundedPlatform)
+                {
+                    *outGroundedPlatform = nullptr;
+                }
             }
         }
 

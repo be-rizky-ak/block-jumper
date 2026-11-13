@@ -152,6 +152,36 @@ void main()
         }
     }
 
+    void VisualEffectsSystem::TriggerDoubleJumpBurst(const Aion::Vector3& feetPosition)
+    {
+        // Emit 10 energetic glowing particles with downward thrust in mid-air
+        int spawned = 0;
+        const int TARGET_SPAWN = 10;
+
+        for (auto& p : m_particles)
+        {
+            if (!p.Active)
+            {
+                float angle = (static_cast<float>(spawned) / static_cast<float>(TARGET_SPAWN)) * 6.283185f;
+                float speed = 1.8f + (static_cast<float>(std::rand() % 100) / 100.0f) * 0.5f;
+
+                p.Position = feetPosition + Aion::Vector3(std::cos(angle) * 0.12f, -0.05f, std::sin(angle) * 0.12f);
+                p.Velocity = Aion::Vector3(std::cos(angle) * speed, -0.8f, std::sin(angle) * speed);
+                p.Color = Aion::Vector4(0.40f, 0.85f, 1.0f, 0.85f); // Bright energetic cyan
+                p.Size = 0.12f + (static_cast<float>(std::rand() % 100) / 100.0f) * 0.05f;
+                p.Lifetime = 0.25f;
+                p.MaxLifetime = 0.25f;
+                p.Active = true;
+
+                spawned++;
+                if (spawned >= TARGET_SPAWN)
+                {
+                    break;
+                }
+            }
+        }
+    }
+
     void VisualEffectsSystem::TriggerLandingBurst(const Aion::Vector3& feetPosition, float landingVelocity)
     {
         // Emit 12 particles radiating outward along platform surface in a ring

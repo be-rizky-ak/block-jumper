@@ -111,6 +111,11 @@ namespace BlockJumper
             case 3: return "Challenging";
             case 4: return "Hard";
             case 5: return "Expert";
+            case 6: return "Moving Platforms";
+            case 7: return "Complex Motion";
+            case 8: return "Dynamic Hazards";
+            case 9: return "Combined Trial";
+            case 10: return "Mastery";
             default: return "Custom";
         }
     }
@@ -118,7 +123,7 @@ namespace BlockJumper
     void LevelManager::InitializePatterns()
     {
         m_patterns.clear();
-        m_patterns.reserve(18);
+        m_patterns.reserve(28);
 
         // Pattern 0: GentleRightArc (Difficulty 1)
         {
@@ -1214,6 +1219,720 @@ namespace BlockJumper
             m_patterns.push_back(std::move(p));
         }
 
+        // =========================================================================
+        // LEVEL 6: Simple Moving Platforms (Difficulty 6)
+        // =========================================================================
+
+        // Pattern 18: MovingPlatformLateral (Difficulty 6)
+        {
+            SegmentPattern p;
+            p.Name = "MovingPlatformLateral";
+            p.MinDifficulty = 6;
+            p.MaxDifficulty = 6;
+            p.Weight = 1.0f;
+            p.LocalEntryPoint = {0.0f, 0.0f, 0.0f};
+
+            p.LocalPlatforms.push_back(PlatformBox{
+                .Position = {0.00f, -0.40f, 0.00f},
+                .Dimensions = {4.00f, 0.80f, 4.00f},
+                .Color = {0.25f, 0.52f, 0.50f, 1.0f},
+                .Metallic = 0.15f,
+                .Roughness = 0.70f,
+                .IsSolidObstacle = false,
+                .Name = "MoveLat_Start"
+            });
+
+            p.LocalPlatforms.push_back(PlatformBox{
+                .Position = {-3.50f, -0.40f, -4.50f},
+                .Dimensions = {2.60f, 0.80f, 2.60f},
+                .Color = {0.18f, 0.42f, 0.65f, 1.0f},
+                .Metallic = 0.20f,
+                .Roughness = 0.65f,
+                .IsSolidObstacle = false,
+                .Name = "MoveLat_Platform",
+                .IsMoving = true,
+                .MoveAxis = {1.0f, 0.0f, 0.0f},
+                .MoveDistance = 1.00f,
+                .MoveSpeed = 1.80f,
+                .MovePhase = 0.0f,
+                .BasePosition = {-3.50f, -0.40f, -4.50f}
+            });
+
+            p.LocalPlatforms.push_back(PlatformBox{
+                .Position = {-7.00f, -0.40f, -9.00f},
+                .Dimensions = {4.00f, 0.80f, 4.00f},
+                .Color = {0.28f, 0.65f, 0.48f, 1.0f},
+                .Metallic = 0.15f,
+                .Roughness = 0.70f,
+                .IsSolidObstacle = false,
+                .Name = "MoveLat_Exit"
+            });
+
+            p.LocalExitPoint = {-7.00f, 0.00f, -9.00f};
+            m_patterns.push_back(std::move(p));
+        }
+
+        // Pattern 19: MovingPlatformLongitudinal (Difficulty 6)
+        {
+            SegmentPattern p;
+            p.Name = "MovingPlatformLongitudinal";
+            p.MinDifficulty = 6;
+            p.MaxDifficulty = 6;
+            p.Weight = 1.0f;
+            p.LocalEntryPoint = {0.0f, 0.0f, 0.0f};
+
+            p.LocalPlatforms.push_back(PlatformBox{
+                .Position = {0.00f, -0.40f, 0.00f},
+                .Dimensions = {4.00f, 0.80f, 4.00f},
+                .Color = {0.25f, 0.52f, 0.50f, 1.0f},
+                .Metallic = 0.15f,
+                .Roughness = 0.70f,
+                .IsSolidObstacle = false,
+                .Name = "MoveLong_Start"
+            });
+
+            p.LocalPlatforms.push_back(PlatformBox{
+                .Position = {-4.50f, -0.20f, -3.50f},
+                .Dimensions = {2.60f, 0.80f, 2.60f},
+                .Color = {0.18f, 0.42f, 0.65f, 1.0f},
+                .Metallic = 0.20f,
+                .Roughness = 0.65f,
+                .IsSolidObstacle = false,
+                .Name = "MoveLong_Platform",
+                .IsMoving = true,
+                .MoveAxis = {0.0f, 0.0f, 1.0f},
+                .MoveDistance = 1.00f,
+                .MoveSpeed = 2.00f,
+                .MovePhase = 0.0f,
+                .BasePosition = {-4.50f, -0.20f, -3.50f}
+            });
+
+            p.LocalPlatforms.push_back(PlatformBox{
+                .Position = {-9.00f, 0.00f, -7.00f},
+                .Dimensions = {4.00f, 0.80f, 4.00f},
+                .Color = {0.28f, 0.65f, 0.48f, 1.0f},
+                .Metallic = 0.15f,
+                .Roughness = 0.70f,
+                .IsSolidObstacle = false,
+                .Name = "MoveLong_Exit"
+            });
+
+            p.LocalExitPoint = {-9.00f, 0.40f, -7.00f};
+            m_patterns.push_back(std::move(p));
+        }
+
+        // =========================================================================
+        // LEVEL 7: Complex Moving Platforms (Difficulty 7)
+        // =========================================================================
+
+        // Pattern 20: DualMovingCrossway (Difficulty 7)
+        {
+            SegmentPattern p;
+            p.Name = "DualMovingCrossway";
+            p.MinDifficulty = 7;
+            p.MaxDifficulty = 7;
+            p.Weight = 1.0f;
+            p.LocalEntryPoint = {0.0f, 0.0f, 0.0f};
+
+            p.LocalPlatforms.push_back(PlatformBox{
+                .Position = {0.00f, -0.40f, 0.00f},
+                .Dimensions = {3.80f, 0.80f, 3.80f},
+                .Color = {0.25f, 0.52f, 0.50f, 1.0f},
+                .Metallic = 0.15f,
+                .Roughness = 0.70f,
+                .IsSolidObstacle = false,
+                .Name = "DualMove_Start"
+            });
+
+            p.LocalPlatforms.push_back(PlatformBox{
+                .Position = {-3.50f, -0.20f, -4.20f},
+                .Dimensions = {2.40f, 0.80f, 2.40f},
+                .Color = {0.18f, 0.42f, 0.65f, 1.0f},
+                .Metallic = 0.20f,
+                .Roughness = 0.65f,
+                .IsSolidObstacle = false,
+                .Name = "DualMove_PlatX",
+                .IsMoving = true,
+                .MoveAxis = {1.0f, 0.0f, 0.0f},
+                .MoveDistance = 1.10f,
+                .MoveSpeed = 2.20f,
+                .MovePhase = 0.0f,
+                .BasePosition = {-3.50f, -0.20f, -4.20f}
+            });
+
+            p.LocalPlatforms.push_back(PlatformBox{
+                .Position = {-7.00f, 0.00f, -8.40f},
+                .Dimensions = {2.40f, 0.80f, 2.40f},
+                .Color = {0.20f, 0.48f, 0.70f, 1.0f},
+                .Metallic = 0.20f,
+                .Roughness = 0.65f,
+                .IsSolidObstacle = false,
+                .Name = "DualMove_PlatZ",
+                .IsMoving = true,
+                .MoveAxis = {0.0f, 0.0f, 1.0f},
+                .MoveDistance = 1.10f,
+                .MoveSpeed = 2.40f,
+                .MovePhase = 1.57f,
+                .BasePosition = {-7.00f, 0.00f, -8.40f}
+            });
+
+            p.LocalPlatforms.push_back(PlatformBox{
+                .Position = {-10.50f, 0.20f, -12.60f},
+                .Dimensions = {3.80f, 0.80f, 3.80f},
+                .Color = {0.28f, 0.65f, 0.48f, 1.0f},
+                .Metallic = 0.15f,
+                .Roughness = 0.70f,
+                .IsSolidObstacle = false,
+                .Name = "DualMove_Exit"
+            });
+
+            p.LocalExitPoint = {-10.50f, 0.60f, -12.60f};
+            m_patterns.push_back(std::move(p));
+        }
+
+        // Pattern 21: AscendingMovingSteps (Difficulty 7)
+        {
+            SegmentPattern p;
+            p.Name = "AscendingMovingSteps";
+            p.MinDifficulty = 7;
+            p.MaxDifficulty = 7;
+            p.Weight = 1.0f;
+            p.LocalEntryPoint = {0.0f, 0.0f, 0.0f};
+
+            p.LocalPlatforms.push_back(PlatformBox{
+                .Position = {0.00f, -0.40f, 0.00f},
+                .Dimensions = {3.80f, 0.80f, 3.80f},
+                .Color = {0.25f, 0.52f, 0.50f, 1.0f},
+                .Metallic = 0.15f,
+                .Roughness = 0.70f,
+                .IsSolidObstacle = false,
+                .Name = "AscStep_Start"
+            });
+
+            p.LocalPlatforms.push_back(PlatformBox{
+                .Position = {-3.40f, 0.10f, -4.00f},
+                .Dimensions = {2.40f, 0.80f, 2.40f},
+                .Color = {0.18f, 0.42f, 0.65f, 1.0f},
+                .Metallic = 0.20f,
+                .Roughness = 0.65f,
+                .IsSolidObstacle = false,
+                .Name = "AscStep_MoveA",
+                .IsMoving = true,
+                .MoveAxis = {1.0f, 0.0f, 0.0f},
+                .MoveDistance = 1.00f,
+                .MoveSpeed = 2.60f,
+                .MovePhase = 0.0f,
+                .BasePosition = {-3.40f, 0.10f, -4.00f}
+            });
+
+            p.LocalPlatforms.push_back(PlatformBox{
+                .Position = {-6.80f, 0.50f, -8.00f},
+                .Dimensions = {2.40f, 0.80f, 2.40f},
+                .Color = {0.20f, 0.48f, 0.70f, 1.0f},
+                .Metallic = 0.20f,
+                .Roughness = 0.65f,
+                .IsSolidObstacle = false,
+                .Name = "AscStep_MoveB",
+                .IsMoving = true,
+                .MoveAxis = {1.0f, 0.0f, 0.0f},
+                .MoveDistance = 1.00f,
+                .MoveSpeed = 2.60f,
+                .MovePhase = 3.14f,
+                .BasePosition = {-6.80f, 0.50f, -8.00f}
+            });
+
+            p.LocalPlatforms.push_back(PlatformBox{
+                .Position = {-10.20f, 0.80f, -12.00f},
+                .Dimensions = {3.80f, 0.80f, 3.80f},
+                .Color = {0.28f, 0.65f, 0.48f, 1.0f},
+                .Metallic = 0.15f,
+                .Roughness = 0.70f,
+                .IsSolidObstacle = false,
+                .Name = "AscStep_Exit"
+            });
+
+            p.LocalExitPoint = {-10.20f, 1.20f, -12.00f};
+            m_patterns.push_back(std::move(p));
+        }
+
+        // =========================================================================
+        // LEVEL 8: Dynamic Obstacles & Hazards (Difficulty 8)
+        // =========================================================================
+
+        // Pattern 22: PeriodicSpikeRunway (Difficulty 8)
+        {
+            SegmentPattern p;
+            p.Name = "PeriodicSpikeRunway";
+            p.MinDifficulty = 8;
+            p.MaxDifficulty = 8;
+            p.Weight = 1.0f;
+            p.LocalEntryPoint = {0.0f, 0.0f, 0.0f};
+
+            p.LocalPlatforms.push_back(PlatformBox{
+                .Position = {0.00f, -0.40f, 0.00f},
+                .Dimensions = {3.80f, 0.80f, 3.80f},
+                .Color = {0.25f, 0.52f, 0.50f, 1.0f},
+                .Metallic = 0.15f,
+                .Roughness = 0.70f,
+                .IsSolidObstacle = false,
+                .Name = "SpikeRun_Start"
+            });
+
+            p.LocalPlatforms.push_back(PlatformBox{
+                .Position = {-3.80f, -0.40f, -4.80f},
+                .Dimensions = {3.80f, 0.80f, 4.80f},
+                .Color = {0.22f, 0.45f, 0.52f, 1.0f},
+                .Metallic = 0.15f,
+                .Roughness = 0.70f,
+                .IsSolidObstacle = false,
+                .Name = "SpikeRun_Runway"
+            });
+
+            p.LocalPlatforms.push_back(PlatformBox{
+                .Position = {-3.80f, 0.40f, -4.80f},
+                .Dimensions = {1.80f, 0.80f, 1.40f},
+                .Color = {0.80f, 0.20f, 0.20f, 1.0f},
+                .Metallic = 0.30f,
+                .Roughness = 0.50f,
+                .IsSolidObstacle = true,
+                .Name = "SpikeRun_Hazard",
+                .BasePosition = {-3.80f, 0.40f, -4.80f},
+                .IsPeriodicHazard = true,
+                .HazardPeriod = 2.40f,
+                .HazardActiveTime = 1.20f,
+                .HazardTimer = 0.0f,
+                .HazardIsActive = true
+            });
+
+            p.LocalPlatforms.push_back(PlatformBox{
+                .Position = {-7.60f, -0.40f, -9.60f},
+                .Dimensions = {3.80f, 0.80f, 3.80f},
+                .Color = {0.28f, 0.65f, 0.48f, 1.0f},
+                .Metallic = 0.15f,
+                .Roughness = 0.70f,
+                .IsSolidObstacle = false,
+                .Name = "SpikeRun_Exit"
+            });
+
+            p.LocalExitPoint = {-7.60f, 0.00f, -9.60f};
+            m_patterns.push_back(std::move(p));
+        }
+
+        // Pattern 23: PatrollingHazardLedge (Difficulty 8)
+        {
+            SegmentPattern p;
+            p.Name = "PatrollingHazardLedge";
+            p.MinDifficulty = 8;
+            p.MaxDifficulty = 8;
+            p.Weight = 1.0f;
+            p.LocalEntryPoint = {0.0f, 0.0f, 0.0f};
+
+            p.LocalPlatforms.push_back(PlatformBox{
+                .Position = {0.00f, -0.40f, 0.00f},
+                .Dimensions = {3.80f, 0.80f, 3.80f},
+                .Color = {0.25f, 0.52f, 0.50f, 1.0f},
+                .Metallic = 0.15f,
+                .Roughness = 0.70f,
+                .IsSolidObstacle = false,
+                .Name = "Patrol_Start"
+            });
+
+            p.LocalPlatforms.push_back(PlatformBox{
+                .Position = {-3.80f, -0.20f, -4.80f},
+                .Dimensions = {4.00f, 0.80f, 4.00f},
+                .Color = {0.20f, 0.45f, 0.58f, 1.0f},
+                .Metallic = 0.15f,
+                .Roughness = 0.70f,
+                .IsSolidObstacle = false,
+                .Name = "Patrol_Platform"
+            });
+
+            p.LocalPlatforms.push_back(PlatformBox{
+                .Position = {-3.80f, 0.60f, -4.80f},
+                .Dimensions = {1.00f, 0.80f, 1.00f},
+                .Color = {0.85f, 0.25f, 0.20f, 1.0f},
+                .Metallic = 0.35f,
+                .Roughness = 0.50f,
+                .IsSolidObstacle = true,
+                .Name = "Patrol_Obstacle",
+                .IsMoving = true,
+                .MoveAxis = {1.0f, 0.0f, 0.0f},
+                .MoveDistance = 1.10f,
+                .MoveSpeed = 2.20f,
+                .MovePhase = 0.0f,
+                .BasePosition = {-3.80f, 0.60f, -4.80f}
+            });
+
+            p.LocalPlatforms.push_back(PlatformBox{
+                .Position = {-7.60f, 0.00f, -9.60f},
+                .Dimensions = {3.80f, 0.80f, 3.80f},
+                .Color = {0.28f, 0.65f, 0.48f, 1.0f},
+                .Metallic = 0.15f,
+                .Roughness = 0.70f,
+                .IsSolidObstacle = false,
+                .Name = "Patrol_Exit"
+            });
+
+            p.LocalExitPoint = {-7.60f, 0.40f, -9.60f};
+            m_patterns.push_back(std::move(p));
+        }
+
+        // =========================================================================
+        // LEVEL 9: Combined Moving Platforms & Hazards (Difficulty 9)
+        // =========================================================================
+
+        // Pattern 24: MovingPlatformHazardWeave (Difficulty 9)
+        {
+            SegmentPattern p;
+            p.Name = "MovingPlatformHazardWeave";
+            p.MinDifficulty = 9;
+            p.MaxDifficulty = 9;
+            p.Weight = 1.0f;
+            p.LocalEntryPoint = {0.0f, 0.0f, 0.0f};
+
+            p.LocalPlatforms.push_back(PlatformBox{
+                .Position = {0.00f, -0.40f, 0.00f},
+                .Dimensions = {3.60f, 0.80f, 3.60f},
+                .Color = {0.25f, 0.52f, 0.50f, 1.0f},
+                .Metallic = 0.15f,
+                .Roughness = 0.70f,
+                .IsSolidObstacle = false,
+                .Name = "Weave_Start"
+            });
+
+            p.LocalPlatforms.push_back(PlatformBox{
+                .Position = {-3.50f, 0.00f, -4.20f},
+                .Dimensions = {2.40f, 0.80f, 2.40f},
+                .Color = {0.18f, 0.42f, 0.65f, 1.0f},
+                .Metallic = 0.20f,
+                .Roughness = 0.65f,
+                .IsSolidObstacle = false,
+                .Name = "Weave_MovePlat",
+                .IsMoving = true,
+                .MoveAxis = {1.0f, 0.0f, 0.0f},
+                .MoveDistance = 1.10f,
+                .MoveSpeed = 2.20f,
+                .MovePhase = 0.0f,
+                .BasePosition = {-3.50f, 0.00f, -4.20f}
+            });
+
+            p.LocalPlatforms.push_back(PlatformBox{
+                .Position = {-7.00f, 0.20f, -8.60f},
+                .Dimensions = {3.80f, 0.80f, 3.80f},
+                .Color = {0.22f, 0.45f, 0.52f, 1.0f},
+                .Metallic = 0.15f,
+                .Roughness = 0.70f,
+                .IsSolidObstacle = false,
+                .Name = "Weave_MidPlat"
+            });
+
+            p.LocalPlatforms.push_back(PlatformBox{
+                .Position = {-7.00f, 1.10f, -8.60f},
+                .Dimensions = {1.80f, 0.80f, 1.20f},
+                .Color = {0.80f, 0.20f, 0.20f, 1.0f},
+                .Metallic = 0.30f,
+                .Roughness = 0.50f,
+                .IsSolidObstacle = true,
+                .Name = "Weave_Hazard",
+                .BasePosition = {-7.00f, 1.10f, -8.60f},
+                .IsPeriodicHazard = true,
+                .HazardPeriod = 2.20f,
+                .HazardActiveTime = 1.00f,
+                .HazardTimer = 0.0f,
+                .HazardIsActive = true
+            });
+
+            p.LocalPlatforms.push_back(PlatformBox{
+                .Position = {-10.60f, 0.40f, -13.00f},
+                .Dimensions = {3.80f, 0.80f, 3.80f},
+                .Color = {0.28f, 0.65f, 0.48f, 1.0f},
+                .Metallic = 0.15f,
+                .Roughness = 0.70f,
+                .IsSolidObstacle = false,
+                .Name = "Weave_Exit"
+            });
+
+            p.LocalExitPoint = {-10.60f, 0.80f, -13.00f};
+            m_patterns.push_back(std::move(p));
+        }
+
+        // Pattern 25: OscillatingSpikeGauntlet (Difficulty 9)
+        {
+            SegmentPattern p;
+            p.Name = "OscillatingSpikeGauntlet";
+            p.MinDifficulty = 9;
+            p.MaxDifficulty = 9;
+            p.Weight = 1.0f;
+            p.LocalEntryPoint = {0.0f, 0.0f, 0.0f};
+
+            p.LocalPlatforms.push_back(PlatformBox{
+                .Position = {0.00f, -0.40f, 0.00f},
+                .Dimensions = {3.60f, 0.80f, 3.60f},
+                .Color = {0.25f, 0.52f, 0.50f, 1.0f},
+                .Metallic = 0.15f,
+                .Roughness = 0.70f,
+                .IsSolidObstacle = false,
+                .Name = "Gaunt_Start"
+            });
+
+            p.LocalPlatforms.push_back(PlatformBox{
+                .Position = {-3.60f, -0.20f, -4.40f},
+                .Dimensions = {2.50f, 0.80f, 2.50f},
+                .Color = {0.18f, 0.42f, 0.65f, 1.0f},
+                .Metallic = 0.20f,
+                .Roughness = 0.65f,
+                .IsSolidObstacle = false,
+                .Name = "Gaunt_MovePlat",
+                .IsMoving = true,
+                .MoveAxis = {0.0f, 0.0f, 1.0f},
+                .MoveDistance = 1.00f,
+                .MoveSpeed = 2.40f,
+                .MovePhase = 0.0f,
+                .BasePosition = {-3.60f, -0.20f, -4.40f}
+            });
+
+            p.LocalPlatforms.push_back(PlatformBox{
+                .Position = {-7.40f, 0.00f, -9.00f},
+                .Dimensions = {4.00f, 0.80f, 4.00f},
+                .Color = {0.20f, 0.45f, 0.58f, 1.0f},
+                .Metallic = 0.15f,
+                .Roughness = 0.70f,
+                .IsSolidObstacle = false,
+                .Name = "Gaunt_Platform2"
+            });
+
+            p.LocalPlatforms.push_back(PlatformBox{
+                .Position = {-7.40f, 0.80f, -9.00f},
+                .Dimensions = {1.00f, 0.80f, 1.00f},
+                .Color = {0.85f, 0.25f, 0.20f, 1.0f},
+                .Metallic = 0.35f,
+                .Roughness = 0.50f,
+                .IsSolidObstacle = true,
+                .Name = "Gaunt_Hazard2",
+                .IsMoving = true,
+                .MoveAxis = {1.0f, 0.0f, 0.0f},
+                .MoveDistance = 1.10f,
+                .MoveSpeed = 2.50f,
+                .MovePhase = 0.0f,
+                .BasePosition = {-7.40f, 0.80f, -9.00f}
+            });
+
+            p.LocalPlatforms.push_back(PlatformBox{
+                .Position = {-11.20f, 0.20f, -13.60f},
+                .Dimensions = {3.60f, 0.80f, 3.60f},
+                .Color = {0.28f, 0.65f, 0.48f, 1.0f},
+                .Metallic = 0.15f,
+                .Roughness = 0.70f,
+                .IsSolidObstacle = false,
+                .Name = "Gaunt_Exit"
+            });
+
+            p.LocalExitPoint = {-11.20f, 0.60f, -13.60f};
+            m_patterns.push_back(std::move(p));
+        }
+
+        // =========================================================================
+        // LEVEL 10: Mastery Combinations (Difficulty 10)
+        // =========================================================================
+
+        // Pattern 26: MasteryMovingAscent (Difficulty 10)
+        {
+            SegmentPattern p;
+            p.Name = "MasteryMovingAscent";
+            p.MinDifficulty = 10;
+            p.MaxDifficulty = 10;
+            p.Weight = 1.0f;
+            p.LocalEntryPoint = {0.0f, 0.0f, 0.0f};
+
+            p.LocalPlatforms.push_back(PlatformBox{
+                .Position = {0.00f, -0.40f, 0.00f},
+                .Dimensions = {3.60f, 0.80f, 3.60f},
+                .Color = {0.25f, 0.52f, 0.50f, 1.0f},
+                .Metallic = 0.15f,
+                .Roughness = 0.70f,
+                .IsSolidObstacle = false,
+                .Name = "MasteryAsc_Start"
+            });
+
+            p.LocalPlatforms.push_back(PlatformBox{
+                .Position = {-3.40f, 0.20f, -4.20f},
+                .Dimensions = {2.40f, 0.80f, 2.40f},
+                .Color = {0.18f, 0.42f, 0.65f, 1.0f},
+                .Metallic = 0.20f,
+                .Roughness = 0.65f,
+                .IsSolidObstacle = false,
+                .Name = "MasteryAsc_PlatX",
+                .IsMoving = true,
+                .MoveAxis = {1.0f, 0.0f, 0.0f},
+                .MoveDistance = 1.10f,
+                .MoveSpeed = 2.50f,
+                .MovePhase = 0.0f,
+                .BasePosition = {-3.40f, 0.20f, -4.20f}
+            });
+
+            p.LocalPlatforms.push_back(PlatformBox{
+                .Position = {-6.80f, 0.60f, -8.40f},
+                .Dimensions = {2.40f, 0.80f, 2.40f},
+                .Color = {0.20f, 0.48f, 0.70f, 1.0f},
+                .Metallic = 0.20f,
+                .Roughness = 0.65f,
+                .IsSolidObstacle = false,
+                .Name = "MasteryAsc_PlatZ",
+                .IsMoving = true,
+                .MoveAxis = {0.0f, 0.0f, 1.0f},
+                .MoveDistance = 1.10f,
+                .MoveSpeed = 2.60f,
+                .MovePhase = 1.57f,
+                .BasePosition = {-6.80f, 0.60f, -8.40f}
+            });
+
+            p.LocalPlatforms.push_back(PlatformBox{
+                .Position = {-10.20f, 0.90f, -12.60f},
+                .Dimensions = {3.80f, 0.80f, 3.80f},
+                .Color = {0.22f, 0.45f, 0.52f, 1.0f},
+                .Metallic = 0.15f,
+                .Roughness = 0.70f,
+                .IsSolidObstacle = false,
+                .Name = "MasteryAsc_PlatLedge"
+            });
+
+            p.LocalPlatforms.push_back(PlatformBox{
+                .Position = {-10.20f, 1.70f, -12.60f},
+                .Dimensions = {1.60f, 0.80f, 1.60f},
+                .Color = {0.85f, 0.20f, 0.20f, 1.0f},
+                .Metallic = 0.30f,
+                .Roughness = 0.50f,
+                .IsSolidObstacle = true,
+                .Name = "MasteryAsc_Spike",
+                .BasePosition = {-10.20f, 1.70f, -12.60f},
+                .IsPeriodicHazard = true,
+                .HazardPeriod = 1.80f,
+                .HazardActiveTime = 0.90f,
+                .HazardTimer = 0.0f,
+                .HazardIsActive = true
+            });
+
+            p.LocalPlatforms.push_back(PlatformBox{
+                .Position = {-13.60f, 1.20f, -16.80f},
+                .Dimensions = {2.40f, 0.80f, 2.40f},
+                .Color = {0.18f, 0.42f, 0.65f, 1.0f},
+                .Metallic = 0.20f,
+                .Roughness = 0.65f,
+                .IsSolidObstacle = false,
+                .Name = "MasteryAsc_PlatFast",
+                .IsMoving = true,
+                .MoveAxis = {1.0f, 0.0f, 0.0f},
+                .MoveDistance = 1.10f,
+                .MoveSpeed = 2.80f,
+                .MovePhase = 0.0f,
+                .BasePosition = {-13.60f, 1.20f, -16.80f}
+            });
+
+            p.LocalPlatforms.push_back(PlatformBox{
+                .Position = {-17.20f, 1.50f, -21.20f},
+                .Dimensions = {4.00f, 0.80f, 4.00f},
+                .Color = {0.28f, 0.65f, 0.48f, 1.0f},
+                .Metallic = 0.15f,
+                .Roughness = 0.70f,
+                .IsSolidObstacle = false,
+                .Name = "MasteryAsc_Exit"
+            });
+
+            p.LocalExitPoint = {-17.20f, 1.90f, -21.20f};
+            m_patterns.push_back(std::move(p));
+        }
+
+        // Pattern 27: MasteryGrandGauntlet (Difficulty 10)
+        {
+            SegmentPattern p;
+            p.Name = "MasteryGrandGauntlet";
+            p.MinDifficulty = 10;
+            p.MaxDifficulty = 10;
+            p.Weight = 1.0f;
+            p.LocalEntryPoint = {0.0f, 0.0f, 0.0f};
+
+            p.LocalPlatforms.push_back(PlatformBox{
+                .Position = {0.00f, -0.40f, 0.00f},
+                .Dimensions = {3.60f, 0.80f, 3.60f},
+                .Color = {0.25f, 0.52f, 0.50f, 1.0f},
+                .Metallic = 0.15f,
+                .Roughness = 0.70f,
+                .IsSolidObstacle = false,
+                .Name = "MasteryG_Start"
+            });
+
+            p.LocalPlatforms.push_back(PlatformBox{
+                .Position = {-3.50f, 0.00f, -4.20f},
+                .Dimensions = {2.40f, 0.80f, 2.40f},
+                .Color = {0.18f, 0.42f, 0.65f, 1.0f},
+                .Metallic = 0.20f,
+                .Roughness = 0.65f,
+                .IsSolidObstacle = false,
+                .Name = "MasteryG_MoveA",
+                .IsMoving = true,
+                .MoveAxis = {1.0f, 0.0f, 0.0f},
+                .MoveDistance = 1.10f,
+                .MoveSpeed = 2.40f,
+                .MovePhase = 0.0f,
+                .BasePosition = {-3.50f, 0.00f, -4.20f}
+            });
+
+            p.LocalPlatforms.push_back(PlatformBox{
+                .Position = {-7.00f, 0.30f, -8.40f},
+                .Dimensions = {2.80f, 0.80f, 2.80f},
+                .Color = {0.22f, 0.45f, 0.52f, 1.0f},
+                .Metallic = 0.15f,
+                .Roughness = 0.70f,
+                .IsSolidObstacle = false,
+                .Name = "MasteryG_Step"
+            });
+
+            p.LocalPlatforms.push_back(PlatformBox{
+                .Position = {-10.50f, 0.60f, -12.60f},
+                .Dimensions = {2.40f, 0.80f, 2.40f},
+                .Color = {0.20f, 0.48f, 0.70f, 1.0f},
+                .Metallic = 0.20f,
+                .Roughness = 0.65f,
+                .IsSolidObstacle = false,
+                .Name = "MasteryG_MoveB",
+                .IsMoving = true,
+                .MoveAxis = {0.0f, 0.0f, 1.0f},
+                .MoveDistance = 1.10f,
+                .MoveSpeed = 2.60f,
+                .MovePhase = 2.00f,
+                .BasePosition = {-10.50f, 0.60f, -12.60f}
+            });
+
+            p.LocalPlatforms.push_back(PlatformBox{
+                .Position = {-14.20f, 0.80f, -17.00f},
+                .Dimensions = {4.00f, 0.80f, 4.00f},
+                .Color = {0.20f, 0.45f, 0.58f, 1.0f},
+                .Metallic = 0.15f,
+                .Roughness = 0.70f,
+                .IsSolidObstacle = false,
+                .Name = "MasteryG_ExitPlat"
+            });
+
+            p.LocalPlatforms.push_back(PlatformBox{
+                .Position = {-14.20f, 1.60f, -17.00f},
+                .Dimensions = {1.00f, 0.80f, 1.00f},
+                .Color = {0.85f, 0.25f, 0.20f, 1.0f},
+                .Metallic = 0.35f,
+                .Roughness = 0.50f,
+                .IsSolidObstacle = true,
+                .Name = "MasteryG_Patrol",
+                .IsMoving = true,
+                .MoveAxis = {1.0f, 0.0f, 0.0f},
+                .MoveDistance = 1.00f,
+                .MoveSpeed = 2.20f,
+                .MovePhase = 0.0f,
+                .BasePosition = {-14.20f, 1.60f, -17.00f}
+            });
+
+            p.LocalExitPoint = {-14.20f, 1.20f, -17.00f};
+            m_patterns.push_back(std::move(p));
+        }
+
     }
 
     static std::string ResolveAssetPath(const std::string& relativePath)
@@ -1232,6 +1951,9 @@ namespace BlockJumper
         m_snowNarrowModel = Aion::AssetManager::LoadModel(ResolveAssetPath("assets/models/kenney_platformer-kit/models/block-snow-narrow.glb"));
         m_spikeObstacleWideModel = Aion::AssetManager::LoadModel(ResolveAssetPath("assets/models/kenney_platformer-kit/models/spike-block-wide.glb"));
         m_spikeObstacleModel = Aion::AssetManager::LoadModel(ResolveAssetPath("assets/models/kenney_platformer-kit/models/spike-block.glb"));
+        m_movingPlatformModel = Aion::AssetManager::LoadModel(ResolveAssetPath("assets/models/kenney_platformer-kit/models/block-moving.glb"));
+        m_movingLargeModel = Aion::AssetManager::LoadModel(ResolveAssetPath("assets/models/kenney_platformer-kit/models/block-moving-large.glb"));
+        m_sawModel = Aion::AssetManager::LoadModel(ResolveAssetPath("assets/models/kenney_platformer-kit/models/saw.glb"));
 
         auto addVariant = [](std::vector<PlatformModelVariant>& list,
                              const std::string& path,
@@ -1497,7 +2219,14 @@ namespace BlockJumper
         if (plat.IsSolidObstacle)
         {
             float maxDim = std::max(plat.Dimensions.x, plat.Dimensions.z);
-            if (maxDim >= 1.8f && m_spikeObstacleWideModel)
+            if ((plat.IsMoving || plat.IsPeriodicHazard) && m_sawModel && maxDim <= 1.4f)
+            {
+                selectedModel = m_sawModel;
+                baseWidth = 1.0f;
+                baseDepth = 1.0f;
+                baseHeight = 1.0f;
+            }
+            else if (maxDim >= 1.8f && m_spikeObstacleWideModel)
             {
                 selectedModel = m_spikeObstacleWideModel;
                 baseHeight = 0.9f;
@@ -1531,6 +2260,32 @@ namespace BlockJumper
                 baseWidth = 2.0f;
                 baseDepth = 2.0f;
                 baseHeight = 1.0f;
+            }
+            else if (plat.IsMoving)
+            {
+                float minDim = std::min(plat.Dimensions.x, plat.Dimensions.z);
+                if (minDim >= 2.0f && m_movingLargeModel)
+                {
+                    selectedModel = m_movingLargeModel;
+                    baseWidth = 2.0f;
+                    baseDepth = 2.0f;
+                    baseHeight = 1.0f;
+                }
+                else if (m_movingPlatformModel)
+                {
+                    selectedModel = m_movingPlatformModel;
+                    baseWidth = 1.0f;
+                    baseDepth = 1.0f;
+                    baseHeight = 1.0f;
+                }
+                else
+                {
+                    auto variant = SelectPlatformModelVariant(plat, difficulty);
+                    selectedModel = variant.Model;
+                    baseWidth = variant.BaseWidth;
+                    baseDepth = variant.BaseDepth;
+                    baseHeight = variant.BaseHeight;
+                }
             }
             else
             {
@@ -2052,7 +2807,7 @@ namespace BlockJumper
         size_t platformIndex,
         std::vector<std::shared_ptr<Aion::Object3D>>& decorObjs)
     {
-        if (plat.IsSolidObstacle || std::string_view(plat.Name).find("Start") != std::string_view::npos)
+        if (plat.IsSolidObstacle || plat.IsMoving || plat.IsPeriodicHazard || std::string_view(plat.Name).find("Start") != std::string_view::npos)
         {
             return;
         }
@@ -2532,6 +3287,7 @@ namespace BlockJumper
         {
             PlatformBox plat = pattern.LocalPlatforms[i];
             plat.Position = plat.Position + worldOffset;
+            plat.BasePosition = plat.Position;
 
             std::string objName = "Seg" + std::to_string(segmentIndex) + "_" + plat.Name;
 
@@ -2571,6 +3327,21 @@ namespace BlockJumper
             : (m_segmentCumulativeStarts.back() + m_segmentLengths.back());
         m_segmentLengths.push_back(segLength);
         m_segmentCumulativeStarts.push_back(prevCumulative);
+
+        // Register level checkpoint on the first valid platform of the level
+        int firstSegOfLevel = (targetDiff - m_config.Difficulty.InitialDifficulty) * m_config.Difficulty.SegmentsPerDifficultyLevel;
+        if (targetDiff > m_currentCheckpoint.Level && segmentIndex >= firstSegOfLevel && !segment->GetPlatforms().empty())
+        {
+            for (const auto& p : segment->GetPlatforms())
+            {
+                if (!p.IsSolidObstacle)
+                {
+                    Aion::Vector3 spawnPos{p.Position.x, p.GetTopSurfaceY() + m_config.Player.HalfExtents.y, p.Position.z};
+                    RegisterCheckpoint(targetDiff, segmentIndex, spawnPos, prevCumulative);
+                    break;
+                }
+            }
+        }
 
         return segment;
     }
@@ -2699,8 +3470,8 @@ namespace BlockJumper
             changed = true;
         }
 
-        // 4. Safe Recycling: Remove segments sufficiently far behind player
-        int minSegmentToKeep = m_currentSegmentIndex - m_config.Endless.SegmentsRetainedBehind;
+        // 4. Safe Recycling: Remove segments sufficiently far behind player, preserving active checkpoint
+        int minSegmentToKeep = std::min(m_currentSegmentIndex - m_config.Endless.SegmentsRetainedBehind, m_currentCheckpoint.SegmentIndex);
         while (!m_activeSegments.empty() && m_activeSegments.front()->GetIndex() < minSegmentToKeep)
         {
             auto oldest = m_activeSegments.front();
@@ -2722,5 +3493,133 @@ namespace BlockJumper
         }
 
         return changed;
+    }
+
+    void LevelManager::UpdateMovingObjects(float deltaTime, const Aion::Vector3& playerPos, Aion::Vector3& carriedDelta)
+    {
+        carriedDelta = Aion::Vector3{0.0f, 0.0f, 0.0f};
+        bool anyMoved = false;
+        constexpr float footRadius = 0.35f;
+
+        for (auto& segment : m_activeSegments)
+        {
+            auto& platforms = segment->GetPlatformsMutable();
+            const auto& sceneObjs = segment->GetSceneObjects();
+
+            for (size_t i = 0; i < platforms.size(); ++i)
+            {
+                auto& plat = platforms[i];
+                auto obj = (i < sceneObjs.size()) ? sceneObjs[i] : nullptr;
+
+                if (plat.IsMoving)
+                {
+                    Aion::Vector3 oldPos = plat.Position;
+                    plat.MovePhase += plat.MoveSpeed * deltaTime;
+                    float offset = std::sin(plat.MovePhase) * plat.MoveDistance;
+                    plat.Position = plat.BasePosition + plat.MoveAxis * offset;
+
+                    if (deltaTime > 0.0001f)
+                    {
+                        plat.Velocity = (plat.Position - oldPos) / deltaTime;
+                    }
+
+                    if (obj)
+                    {
+                        obj->Transform.Position = Aion::Vector3(
+                            plat.Position.x,
+                            plat.Position.y - 0.5f * plat.Dimensions.y,
+                            plat.Position.z);
+                    }
+
+                    // Check player carrying (if player is standing on this platform)
+                    if (!plat.IsSolidObstacle)
+                    {
+                        Aion::Vector3 pMin = plat.GetMin();
+                        Aion::Vector3 pMax = plat.GetMax();
+                        float topY = plat.GetTopSurfaceY();
+                        float playerBottomY = playerPos.y - m_config.Player.HalfExtents.y;
+
+                        bool horizInside = (playerPos.x + footRadius >= pMin.x &&
+                                            playerPos.x - footRadius <= pMax.x &&
+                                            playerPos.z + footRadius >= pMin.z &&
+                                            playerPos.z - footRadius <= pMax.z);
+                        bool vertOnTop = (std::abs(playerBottomY - topY) <= 0.25f);
+
+                        if (horizInside && vertOnTop)
+                        {
+                            carriedDelta = carriedDelta + (plat.Position - oldPos);
+                        }
+                    }
+
+                    anyMoved = true;
+                }
+
+                if (plat.IsPeriodicHazard)
+                {
+                    plat.HazardTimer += deltaTime;
+                    if (plat.HazardTimer >= plat.HazardPeriod)
+                    {
+                        plat.HazardTimer = std::fmod(plat.HazardTimer, plat.HazardPeriod);
+                    }
+
+                    bool isActive = (plat.HazardTimer < plat.HazardActiveTime);
+                    plat.HazardIsActive = isActive;
+                    plat.IsSolidObstacle = isActive;
+
+                    if (obj)
+                    {
+                        if (isActive)
+                        {
+                            obj->Transform.Position = Aion::Vector3(
+                                plat.Position.x,
+                                plat.Position.y - 0.5f * plat.Dimensions.y,
+                                plat.Position.z);
+                        }
+                        else
+                        {
+                            // Retract below platform surface so spikes are concealed
+                            obj->Transform.Position = Aion::Vector3(
+                                plat.Position.x,
+                                plat.Position.y - 0.5f * plat.Dimensions.y - 1.5f,
+                                plat.Position.z);
+                        }
+                    }
+
+                    anyMoved = true;
+                }
+            }
+        }
+
+        if (anyMoved)
+        {
+            RebuildActivePlatforms();
+        }
+    }
+
+    void LevelManager::ResetCheckpoint()
+    {
+        m_currentCheckpoint = Checkpoint{1, 0, m_config.Player.SpawnPosition, 0.0f, true};
+    }
+
+    void LevelManager::RegisterCheckpoint(int level, int segmentIndex, const Aion::Vector3& spawnPos, float forwardProgress)
+    {
+        if (level > m_currentCheckpoint.Level || !m_currentCheckpoint.IsValid)
+        {
+            m_currentCheckpoint.Level = level;
+            m_currentCheckpoint.SegmentIndex = segmentIndex;
+            m_currentCheckpoint.SpawnPosition = spawnPos;
+            m_currentCheckpoint.ForwardProgress = forwardProgress;
+            m_currentCheckpoint.IsValid = true;
+            std::cout << "[LevelManager] Checkpoint Registered: Level " << level
+                      << " at Segment " << segmentIndex
+                      << " (Spawn: " << spawnPos.x << ", " << spawnPos.y << ", " << spawnPos.z << ")" << std::endl;
+        }
+    }
+
+    void LevelManager::RestoreToCheckpoint(Aion::Vector3& outSpawnPos)
+    {
+        outSpawnPos = m_currentCheckpoint.SpawnPosition;
+        m_currentSegmentIndex = std::max(m_currentSegmentIndex, m_currentCheckpoint.SegmentIndex);
+        m_forwardProgress = std::max(m_forwardProgress, m_currentCheckpoint.ForwardProgress);
     }
 } // namespace BlockJumper

@@ -49,13 +49,26 @@ namespace BlockJumper
         m_simulatedJump = jumpPressed;
     }
 
+    void PlayerController::ApplyCarriedOffset(const Aion::Vector3& offset)
+    {
+        Aion::Object3D* owner = GetOwner();
+        if (owner)
+        {
+            owner->Transform.Position = owner->Transform.Position + offset;
+        }
+    }
+
     void PlayerController::ResetKinematics(const Aion::Vector3& spawnPos, float facingYaw)
     {
         m_horizontalVelocity = Aion::Vector3(0.0f);
         m_verticalVelocity = 0.0f;
         m_isGrounded = true;
         m_justJumped = false;
+        m_justDoubleJumped = false;
         m_justLanded = false;
+        m_jumpCount = 0;
+        m_jumpWasPressed = false;
+        m_groundedPlatform = nullptr;
         m_inputEnabled = true;
         m_frozen = false;
         m_useSimulatedInput = false;
@@ -97,6 +110,7 @@ namespace BlockJumper
         float previousY = currentPosition.y;
         bool wasGrounded = m_isGrounded;
         m_justJumped = false;
+        m_justDoubleJumped = false;
         m_justLanded = false;
 
         // -------------------------------------------------------------
@@ -188,9 +202,9 @@ namespace BlockJumper
         currentPosition = currentPosition + m_horizontalVelocity * deltaTime;
 
         // -------------------------------------------------------------
-        // 2. Jump and Gravity
-        // Space key triggers single jump only when grounded.
-        // No automatic jumping.
+        // 2. Jump and Gravity (Ground Jump & Double Jump)
+        // Space key triggers jump: 1st from ground, 2nd while airborne.
+        // Third jump is prevented. Holding space does not re-trigger.
         // -------------------------------------------------------------
         bool jumpRequested = false;
         if (m_inputEnabled)
@@ -205,11 +219,30 @@ namespace BlockJumper
             }
         }
 
-        if (jumpRequested && m_isGrounded)
+        bool jumpPressedThisFrame = jumpRequested && !m_jumpWasPressed;
+        m_jumpWasPressed = jumpRequested;
+
+        if (m_isGrounded)
         {
-            m_verticalVelocity = m_config.JumpVelocity;
-            m_isGrounded = false;
-            m_justJumped = true;
+            if (jumpPressedThisFrame)
+            {
+                m_verticalVelocity = m_config.JumpVelocity;
+                m_isGrounded = false;
+                m_justJumped = true;
+                m_jumpCount = 1;
+                m_groundedPlatform = nullptr;
+            }
+        }
+        else
+        {
+            if (jumpPressedThisFrame && m_jumpCount < 2)
+            {
+                m_verticalVelocity = m_config.JumpVelocity;
+                m_justJumped = true;
+                m_justDoubleJumped = true;
+                m_jumpCount = 2;
+                m_groundedPlatform = nullptr;
+            }
         }
 
         if (!m_isGrounded)
@@ -234,7 +267,13 @@ namespace BlockJumper
             m_isGrounded,
             m_platforms,
             previousY,
-            deltaTime);
+            deltaTime,
+            &m_groundedPlatform);
+
+        if (m_isGrounded)
+        {
+            m_jumpCount = 0; // Landing resets both jumps
+        }
 
         if (!wasGrounded && m_isGrounded)
         {

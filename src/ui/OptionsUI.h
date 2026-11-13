@@ -20,6 +20,13 @@ namespace BlockJumper
 {
     class SaveManager;
 
+    enum class OptionsScreen
+    {
+        Menu,
+        Volume,
+        Credits
+    };
+
     enum class AudioSliderCategory
     {
         None,
@@ -89,6 +96,13 @@ namespace BlockJumper
         // -1: Auto (dynamic input), 0: Normal, 1: Hover, 2: Pressed
         void SetCloseButtonVisualStateOverride(int state) { m_closeBtnVisualOverride = state; }
         int GetCloseButtonVisualStateOverride() const { return m_closeBtnVisualOverride; }
+
+        // Navigation state queries and transitions
+        OptionsScreen GetCurrentScreen() const { return m_currentScreen; }
+        void SetCurrentScreen(OptionsScreen screen) { m_currentScreen = screen; }
+        void NavigateToVolume() { m_currentScreen = OptionsScreen::Volume; }
+        void NavigateToCredits() { m_currentScreen = OptionsScreen::Credits; }
+        void NavigateBack();
 
         void SetFeedbackClip(std::shared_ptr<Aion::AudioClip> clip) { m_feedbackClip = std::move(clip); }
 
@@ -189,10 +203,29 @@ namespace BlockJumper
         mutable float m_closeBtnMinY = -0.28f;
         mutable float m_closeBtnMaxY = -0.18f;
 
+        mutable float m_menuVolMinX = -0.30f;
+        mutable float m_menuVolMaxX =  0.30f;
+        mutable float m_menuVolMinY =  0.03f;
+        mutable float m_menuVolMaxY =  0.15f;
+
+        mutable float m_menuCredMinX = -0.30f;
+        mutable float m_menuCredMaxX =  0.30f;
+        mutable float m_menuCredMinY = -0.11f;
+        mutable float m_menuCredMaxY =  0.01f;
+
         bool m_closeButtonPressed = false;
         int m_closeBtnVisualOverride = -1;
 
+        OptionsScreen m_currentScreen = OptionsScreen::Menu;
+
         bool m_escPrev = true;
         bool m_mousePrev = true;
+
+        void RenderMenuScreen(int screenWidth, int screenHeight, float pixelW, float pixelH, float cardX0, float cardX1, float cardY0, float cardY1);
+        void RenderVolumeScreen(int screenWidth, int screenHeight, float pixelW, float pixelH, float cardX0, float cardX1, float cardY0, float cardY1);
+        void RenderCreditsScreen(int screenWidth, int screenHeight, float pixelW, float pixelH, float cardX0, float cardX1, float cardY0, float cardY1);
+
+        bool IsMouseOverMenuVolume(float ndcX, float ndcY) const;
+        bool IsMouseOverMenuCredits(float ndcX, float ndcY) const;
     };
 } // namespace BlockJumper

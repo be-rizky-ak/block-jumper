@@ -26,6 +26,7 @@ namespace BlockJumper
         m_masterVolume = 1.0f;
         m_musicVolume = 0.5f;
         m_sfxVolume = 0.8f;
+        m_checkpointLevel = 1;
 
         std::ifstream file(m_filepath);
         if (!file.is_open())
@@ -81,6 +82,15 @@ namespace BlockJumper
             m_musicVolume = loadVol("music_volume", "music", 0.5f);
             m_sfxVolume = loadVol("sfx_volume", "sfx", 0.8f);
 
+            if (j.contains("checkpoint_level") && j["checkpoint_level"].is_number())
+            {
+                int lvl = j["checkpoint_level"].get<int>();
+                if (lvl >= 1 && lvl <= 10)
+                {
+                    m_checkpointLevel = lvl;
+                }
+            }
+
             return validDistance;
         }
         catch (const std::exception& e)
@@ -91,8 +101,14 @@ namespace BlockJumper
             m_masterVolume = 1.0f;
             m_musicVolume = 0.5f;
             m_sfxVolume = 0.8f;
+            m_checkpointLevel = 1;
             return false;
         }
+    }
+
+    void SaveManager::SetCheckpointLevel(int level)
+    {
+        m_checkpointLevel = std::clamp(level, 1, 10);
     }
 
     bool SaveManager::Save()
@@ -120,6 +136,7 @@ namespace BlockJumper
             j["master_volume"] = m_masterVolume;
             j["music_volume"] = m_musicVolume;
             j["sfx_volume"] = m_sfxVolume;
+            j["checkpoint_level"] = m_checkpointLevel;
 
             std::ofstream file(m_filepath, std::ios::trunc);
             if (!file.is_open())

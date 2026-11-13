@@ -63,6 +63,21 @@ namespace BlockJumper
         bool IsSolidObstacle = false; // When true, blocks horizontal player traversal
         const char* Name = "Platform";
 
+        // Moving platform & dynamic obstacle attributes
+        bool IsMoving = false;
+        Aion::Vector3 MoveAxis{1.0f, 0.0f, 0.0f};
+        float MoveDistance = 0.0f;
+        float MoveSpeed = 0.0f;
+        float MovePhase = 0.0f;
+        Aion::Vector3 BasePosition{0.0f};
+        Aion::Vector3 Velocity{0.0f};
+
+        bool IsPeriodicHazard = false;
+        float HazardPeriod = 2.0f;
+        float HazardActiveTime = 1.0f;
+        float HazardTimer = 0.0f;
+        bool HazardIsActive = true;
+
         float GetTopSurfaceY() const { return Position.y + Dimensions.y * 0.5f; }
         Aion::Vector3 GetMin() const { return Position - Dimensions * 0.5f; }
         Aion::Vector3 GetMax() const { return Position + Dimensions * 0.5f; }
@@ -118,7 +133,7 @@ namespace BlockJumper
         int InitialDifficulty = 1;
 
         // Configurable maximum difficulty level
-        int MaxDifficulty = 5;
+        int MaxDifficulty = 10;
 
         // Number of completed segments required to advance to the next difficulty level
         int SegmentsPerDifficultyLevel = 3;

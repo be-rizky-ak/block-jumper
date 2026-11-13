@@ -37,7 +37,8 @@ namespace BlockJumper
             bool& isGrounded,
             const std::vector<PlatformBox>& platforms,
             float previousY,
-            float deltaTime);
+            float deltaTime,
+            const PlatformBox** outGroundedPlatform = nullptr);
 
     private:
         Aion::Vector3 m_halfExtents{0.5f, 0.5f, 0.5f};

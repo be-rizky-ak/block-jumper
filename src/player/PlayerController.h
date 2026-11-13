@@ -25,9 +25,15 @@ namespace BlockJumper
         float GetVerticalVelocity() const { return m_verticalVelocity; }
         bool IsGrounded() const { return m_isGrounded; }
         bool JustJumped() const { return m_justJumped; }
+        bool JustDoubleJumped() const { return m_justDoubleJumped; }
         bool JustLanded() const { return m_justLanded; }
         bool IsFalling() const { return !m_isGrounded && m_verticalVelocity < 0.0f; }
         bool IsAscending() const { return !m_isGrounded && m_verticalVelocity > 0.0f; }
+        int GetJumpCount() const { return m_jumpCount; }
+        bool CanDoubleJump() const { return !m_isGrounded && m_jumpCount < 2; }
+
+        const PlatformBox* GetGroundedPlatform() const { return m_groundedPlatform; }
+        void SetGroundedPlatform(const PlatformBox* plat) { m_groundedPlatform = plat; }
 
         const PlayerConfig& GetConfig() const { return m_config; }
         void SetConfig(const PlayerConfig& config) { m_config = config; }
@@ -46,6 +52,11 @@ namespace BlockJumper
 
         void SetFrozen(bool frozen) { m_frozen = frozen; }
         bool IsFrozen() const { return m_frozen; }
+
+        /**
+         * @brief Applies carried displacement from a moving platform the player is standing on.
+         */
+        void ApplyCarriedOffset(const Aion::Vector3& offset);
 
         /**
          * @brief Completely resets player kinematics, velocities, fall state, and input flags.
@@ -67,7 +78,11 @@ namespace BlockJumper
         float m_verticalVelocity = 0.0f;
         bool m_isGrounded = true;
         bool m_justJumped = false;
+        bool m_justDoubleJumped = false;
         bool m_justLanded = false;
+        int m_jumpCount = 0;
+        bool m_jumpWasPressed = false;
+        const PlatformBox* m_groundedPlatform = nullptr;
 
         bool m_inputEnabled = true;
         bool m_frozen = false;

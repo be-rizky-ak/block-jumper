@@ -196,7 +196,7 @@ namespace BlockJumper
             }
         }
 
-        if (desiredState != m_currentState)
+        if (desiredState != m_currentState || (justJumped && desiredState == PlayerAnimState::Jump))
         {
             TransitionToState(desiredState);
         }

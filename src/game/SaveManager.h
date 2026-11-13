@@ -57,6 +57,9 @@ namespace BlockJumper
             m_sfxVolume = sfx;
         }
 
+        int GetCheckpointLevel() const { return m_checkpointLevel; }
+        void SetCheckpointLevel(int level);
+
         const std::string& GetFilePath() const { return m_filepath; }
 
     private:
@@ -65,5 +68,6 @@ namespace BlockJumper
         float m_masterVolume = 1.0f;
         float m_musicVolume = 0.5f;
         float m_sfxVolume = 0.8f;
+        int m_checkpointLevel = 1;
     };
 } // namespace BlockJumper
